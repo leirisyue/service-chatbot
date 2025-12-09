@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  rag-chatbot:
+    build: .
+    container_name: rag-chatbot-service
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env  # Sử dụng file .env
+    environment:
+      # Các biến môi trường có thể override từ .env
+      - APP_PG_HOST=${APP_PG_HOST}
+      - APP_PG_USER=${APP_PG_USER}
+      - APP_PG_PASSWORD=${APP_PG_PASSWORD}
+      - APP_PG_DATABASE=${APP_PG_DATABASE}
+      - APP_PG_PORT=${APP_PG_PORT}
+      - OLLAMA_HOST=${OLLAMA_HOST}
+      - APP_CHAT_MODEL=${APP_CHAT_MODEL}
+      - APP_EMBEDDING_MODEL=${APP_EMBEDDING_MODEL}
+      - AI_STUDIO_API_KEY=${AI_STUDIO_API_KEY}
+    volumes:
+      # Mount volume cho code để dễ phát triển
+      - ./app:/app/app
+      - ./requirements.txt:/app/requirements.txt
+    restart: unless-stopped
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/rag/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  rag-network:
+    driver: bridge
