@@ -1,27 +1,27 @@
-from pydantic_settings import BaseSettings
-from typing import Optional
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field
 
 class Settings(BaseSettings):
-    # Database Configuration
-    APP_PG_HOST: str = "host.docker.internal"
-    APP_PG_USER: str = "postgres"
-    APP_PG_PASSWORD: str = "postgres"
-    APP_PG_DATABASE: str = "ultimate_advisor"
-    APP_PG_PORT: int = 5432
-    
-    # Ollama Configuration
-    OLLAMA_HOST: str = "http://host.docker.internal:11434"
-    APP_CHAT_MODEL: str = "llama3.2:3b"
-    APP_EMBEDDING_MODEL: str = "nomic-embed-text:latest"
-    
-    # AI Studio API Key (for Gemini if needed)
-    AI_STUDIO_API_KEY: Optional[str] = None
-    
-    # RAG Configuration
-    TOP_K_RESULTS: int = 5
-    SIMILARITY_THRESHOLD: float = 0.7
-    
-    class Config:
-        env_file = ".env"
+    # Database
+    APP_PG_HOST: str = Field(default="host.docker.internal")
+    APP_PG_USER: str = Field(default="postgres")
+    APP_PG_PASSWORD: str = Field(default="postgres")
+    APP_PG_DATABASE: str = Field(default="ultimate_advisor")
+    APP_PG_PORT: int = Field(default=5432)
+
+    # Ollama
+    OLLAMA_HOST: str = Field(default="http://host.docker.internal:11434")
+    APP_EMBEDDING_MODEL: str = Field(default="nomic-embed-text:latest")
+
+    # Gemini
+    GOOGLE_API_KEY: str = Field(default="", description="API key từ Google AI Studio")
+    APP_GEMINI_MODEL: str = Field(default="gemini-1.5-pro")  # sử dụng model Gemini Pro
+
+    # App
+    APP_RELOAD: bool = Field(default=False)
+    APP_TOP_K: int = Field(default=5)
+    APP_MIN_SCORE: float = Field(default=0.3)  # 0..1 với cosine
+
+    model_config = SettingsConfigDict(env_file=".env", case_sensitive=False)
 
 settings = Settings()
