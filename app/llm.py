@@ -9,7 +9,10 @@ if settings.GOOGLE_API_KEY:
 
 def health_check_gemini() -> bool:
     try:
-        model = genai.GenerativeModel(settings.APP_GEMINI_MODEL)
+        m = _resolve_supported_model()
+        if not m:
+            return False
+        model = genai.GenerativeModel(m)
         _ = model.generate_content("ping", generation_config={"max_output_tokens": 1})
         return True
     except Exception:
@@ -38,17 +41,53 @@ def generate_answer(
         # Append images to multimodal prompt
         parts.extend(images)
 
-    # Try generate with configured model, fallback to commonly available ones
-    candidate_models = [settings.APP_GEMINI_MODEL, "gemini-1.5-flash", "gemini-1.0-pro"]
-    last_err = None
-    for m in candidate_models:
-        try:
-            model = genai.GenerativeModel(m)
-            resp = model.generate_content(parts, safety_settings=None)
-            text = (getattr(resp, "text", None) or "").strip()
-            if text:
-                return text
-        except Exception as e:
-            last_err = e
-            continue
-    return "Xin lỗi, mô hình Gemini hiện không khả dụng cho generateContent: " + (str(last_err) if last_err else "Unknown error")
+    # Resolve a model that supports generateContent for the current API
+    m = _resolve_supported_model()
+    if not m:
+        return "Xin lỗi, không tìm thấy model Gemini hỗ trợ generateContent trong API hiện tại. Vui lòng kiểm tra API key và quyền truy cập."
+    try:
+        model = genai.GenerativeModel(m)
+        resp = model.generate_content(parts, safety_settings=None)
+        text = (getattr(resp, "text", None) or "").strip()
+        print(f"Gemini response text (model={m}): {text}")
+        if text:
+            return text
+    except Exception as e:
+        return "Xin lỗi, lỗi gọi Gemini generateContent với model '" + m + "': " + str(e)
+    return "Xin lỗi, tôi chưa thể trả lời câu hỏi này."
+
+def _resolve_supported_model() -> Optional[str]:
+    """Pick a model that supports generateContent from the account's available models.
+    Preference order: env-configured model, then any 'flash' model, then any 'pro' model.
+    """
+    try:
+        # List models available to the API key
+        ms = genai.list_models()
+        available = []
+        for m in ms:
+            # Some client versions expose supported methods via 'supported_generation_methods'
+            methods = getattr(m, "supported_generation_methods", None)
+            if methods and ("generateContent" in methods or "generate_content" in methods):
+                available.append(m.name)
+        if not available:
+            return None
+        # If the configured model is available, prefer it
+        if settings.APP_GEMINI_MODEL in available:
+            return settings.APP_GEMINI_MODEL
+        # Prefer flash models
+        for name in available:
+            if "flash" in name:
+                return name
+        # Else fall back to any
+        return available[0]
+    except Exception:
+        # If listing fails, try a small known-good set
+        fallbacks = [settings.APP_GEMINI_MODEL, "gemini-2.0-flash", "gemini-1.5-flash"]
+        for name in fallbacks:
+            try:
+                model = genai.GenerativeModel(name)
+                # Lightweight check: do not call API here
+                return name
+            except Exception:
+                continue
+        return None

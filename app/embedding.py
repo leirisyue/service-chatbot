@@ -12,6 +12,7 @@ def embed_text(text: str) -> List[float]:
         "prompt": text
     }
     r = requests.post(url, json=payload, timeout=60)
+    # chuyen query thanh vector
     # print('Ollama response:', r.text)
     r.raise_for_status()
     data = r.json()
