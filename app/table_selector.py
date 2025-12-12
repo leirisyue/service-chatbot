@@ -3,6 +3,9 @@ import json
 from dataclasses import dataclass, field
 from app.embedding import embed_text
 from app.config import settings
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
 
 @dataclass
 class TableSchemaDesc:

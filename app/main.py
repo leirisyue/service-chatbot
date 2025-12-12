@@ -4,6 +4,9 @@ import logging
 from logging.handlers import TimedRotatingFileHandler
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
 
 # Initialize logging early
 def setup_logging():
@@ -38,12 +41,12 @@ log = logging.getLogger("startup")
 def log_env_summary():
     try:
         from app.config import settings
-        log.info("Environment summary: PG=%s:%s DB=%s OLLAMA_HOST=%s EMB_MODEL=%s GEMINI_MODEL=%s RELOAD=%s",
+        logger.info("Environment summary: PG=%s:%s DB=%s OLLAMA_HOST=%s EMB_MODEL=%s GEMINI_MODEL=%s RELOAD=%s",
                  settings.APP_PG_HOST, settings.APP_PG_PORT, settings.APP_PG_DATABASE,
                  settings.OLLAMA_HOST, settings.APP_EMBEDDING_MODEL,
                  settings.APP_GEMINI_MODEL, settings.APP_RELOAD)
     except Exception as e:
-        log.exception("Failed to read settings: %s", e)
+        logger.exception("Failed to read settings: %s", e)
 
 log_env_summary()
 
@@ -65,9 +68,9 @@ app.add_middleware(
 try:
     from app.routers.rag import rag_router
     app.include_router(rag_router, tags=["RAG"])
-    log.info("Router mounted successfully.")
+    logger.info("Router mounted successfully.")
 except Exception as e:
-    log.exception("Failed to mount router: %s", e)
+    logger.exception("Failed to mount router: %s", e)
     # Fail fast so the stack trace is printed clearly
     raise
 

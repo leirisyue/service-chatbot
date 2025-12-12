@@ -7,29 +7,24 @@ from app.embedding import embed_text, health_check_ollama
 from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
 from app.llm import generate_answer, health_check_gemini
 from app.config import settings
-from app.table_selector_llm import selector
+from app.table_selector import selector
 from PIL import Image
 from io import BytesIO
 import logging
+from app.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 rag_router = APIRouter()
 log = logging.getLogger("rag")
 
 def _align_vector_dim(vec: List[float], target_dim: Optional[int]) -> List[float]:
-    """
-    Căn chỉnh chiều vector truy vấn cho phù hợp với cột 'embedding' trong bảng:
-    - Nếu target_dim None: trả nguyên vec.
-    - Nếu vec dài hơn: cắt bớt.
-    - Nếu vec ngắn hơn: padding 0.
-    """
-    log.debug("Aligning vector dimension to target_dim: %s", target_dim)
     if not isinstance(vec, list) or target_dim is None:
         return vec
     if len(vec) == target_dim:
         return vec
     if len(vec) > target_dim:
         return vec[:target_dim]
-    # pad
     return vec + [0.0] * (target_dim - len(vec))
 
 @rag_router.post("/query", response_model=QueryResponse, summary="Query the RAG system with a text query")
@@ -40,9 +35,8 @@ async def query_rag(
     # files: Optional[List[UploadFile]] = File(default=None, description="Danh sách ảnh (image/*)"),
 ):
     try:
-        # Collect images
         image_bytes_list: List[bytes] = []
-        # pil_images: List[Image] = []
+        pil_images: List[Image] = []
         # if files:
         #     for f in files:
         #         content = await f.read()
@@ -55,34 +49,26 @@ async def query_rag(
 
         ocr_text = ocr_images_to_text(image_bytes_list) if image_bytes_list else ""
         user_text = (text or "").strip()
-        
-        # gop text va noi dung ocr
         merged_text = " ".join([t for t in [user_text, ocr_text] if t]).strip()
-        
         if not merged_text:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Thiếu input: cần cung cấp text hoặc ít nhất một ảnh chứa chữ.")
 
-        # 1) Select one table
         selected = selector.select_best_table(merged_text)
-        
         if not selected:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Không tìm thấy bảng phù hợp theo schema mô tả.")
         schema, table, table_score = selected
+        logger.info("Selected table: %s.%s (score=%.3f)", schema, table, table_score)
 
-        #  lay duoc table query
-        log.info("Selected table: %s.%s (score=%.3f)", schema, table, table_score)
-        
-        # 2) Embed query
         query_vec = embed_text(merged_text)
+        db_dim = get_embedding_dimension(schema, table)
+        logger.info("Query vec dim=%s, DB vec dim for %s.%s=%s", len(query_vec) if isinstance(query_vec, list) else None, schema, table, db_dim)
 
-        # 3) Align dimension to table vector dim
-        dim = get_embedding_dimension(schema, table)
-        query_vec_aligned = _align_vector_dim(query_vec, dim)
+        query_vec_aligned = _align_vector_dim(query_vec, db_dim)
+        if isinstance(query_vec_aligned, list):
+            logger.info("Aligned query vec dim=%d", len(query_vec_aligned))
 
-        # 4) Vector search within selected table
         hits = similarity_search_table(schema, table, query_vec_aligned, top_k=top_k, min_score=min_score)
 
-        # Build contexts
         context_strings: List[str] = []
         used_contexts: List[ContextDocument] = []
         for h in hits:
@@ -95,25 +81,21 @@ async def query_rag(
                 original_data=h.get("original_data"),
                 content_text=h.get("content_text"),
             ))
-        
-        # Nếu không có hit nào, vẫn gọi LLM với thông điệp rõ ràng
-        if not context_strings:
-            context_strings = [f"Không tìm thấy tài liệu phù hợp trong cơ sở dữ liệu cho câu hỏi này."]
 
-        log.info("Found %d context documents from table %s.%s", len(used_contexts), schema, table)
-        log.debug("User text: %s", user_text)
-        # print("context_strings: ", context_strings)
-        answer = generate_answer(user_text or merged_text, context_strings)
+        if not context_strings:
+            context_strings = [f"Không tìm thấy tài liệu phù hợp trong bảng {schema}.{table} cho câu hỏi này."]
+
+        answer = generate_answer(user_text or merged_text, context_strings, images=pil_images if pil_images else None)
 
         return QueryResponse(answer=answer, ocr_text=ocr_text, used_contexts=used_contexts)
 
     except HTTPException:
-        # fastapi HTTPException giữ nguyên
         raise
     except Exception as e:
-        # Log lỗi nội bộ để tiện debug, trả về 500 có message ngắn gọn
-        log.exception("Unhandled error in /query: %s", e)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Lỗi nội bộ khi xử lý truy vấn. Vui lòng kiểm tra nhật ký server.")
+        logger.exception("Unhandled error in /query: %s", e)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Lỗi nội bộ khi xử lý truy vấn: {str(e)}")
+    
+    
 
 @rag_router.get("/health", response_model=HealthStatusResponse, summary="Get health status of the RAG system components.")
 async def health():

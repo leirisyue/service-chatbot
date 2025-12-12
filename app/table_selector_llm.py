@@ -5,7 +5,9 @@ from dataclasses import dataclass
 from app.config import settings
 import logging
 
-logger = logging.getLogger(__name__)
+from .logger import setup_logger
+
+logger = setup_logger(__name__)
 
 @dataclass
 class TableSchemaDesc:

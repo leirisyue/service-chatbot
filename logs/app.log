@@ -682,3 +682,646 @@ Traceback (most recent call last):
     raise ex.with_traceback(None)
 psycopg.errors.DataException: different vector dimensions 768 and 4096
 2025-12-12 03:08:18,797 INFO uvicorn.access: 172.29.0.1:36956 - "POST /query HTTP/1.1" 500
+2025-12-12 03:38:52,240 INFO uvicorn.error: Shutting down
+2025-12-12 03:38:52,342 INFO uvicorn.error: Waiting for application shutdown.
+2025-12-12 03:38:52,344 INFO uvicorn.error: Application shutdown complete.
+2025-12-12 03:38:52,345 INFO uvicorn.error: Finished server process [1]
+2025-12-12 03:43:55 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:55,140 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:55 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:43:55,781 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:43:57 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:57,549 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:57 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:43:57,858 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:43:59 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:59,670 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:43:59 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:43:59,963 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:02 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:02,018 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:02 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:02,361 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:04 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:04,898 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:05 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:05,221 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:08 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:08,759 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:44:09 [ERROR] [__main__] Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:44:09,120 ERROR __main__: Failed to mount router: cannot import name 'Vector' from 'pgvector' (unknown location)
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 6, in <module>
+    from pgvector import Vector  # dùng đối tượng Vector để truyền param đúng kiểu
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: cannot import name 'Vector' from 'pgvector' (unknown location)
+2025-12-12 03:50:30 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:30,093 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:37 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:37,418 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:39 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:39,782 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:41 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:41,993 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:44 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:44,613 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:46 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:46,575 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:48 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:48,679 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:50:50 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:50:50,558 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:10 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:10,512 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:12 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:12,241 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:15 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:15,715 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:17 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:17,500 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:22 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:22,528 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:24 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:24,367 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:32 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:32,450 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:34 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:34,186 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:49 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:49,651 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:51:51 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:51:51,631 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:52:19 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:52:19,032 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:52:20 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:52:20,679 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:53:13 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:53:13,457 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:53:15 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:53:15,193 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:54:16 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:54:16,923 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:54:18 [ERROR] [__main__] Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:54:18,579 ERROR __main__: Failed to mount router: No module named 'app.routers.logger'
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 14, in <module>
+    from .logger import setup_logger
+ModuleNotFoundError: No module named 'app.routers.logger'
+2025-12-12 03:55:08 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:55:08,755 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:55:11 [INFO] [__main__] Router mounted successfully.
+2025-12-12 03:55:11,930 INFO __main__: Router mounted successfully.
+2025-12-12 03:55:11 [INFO] [app.main] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:55:11,981 INFO app.main: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 03:55:11 [INFO] [app.main] Router mounted successfully.
+2025-12-12 03:55:11,988 INFO app.main: Router mounted successfully.
+2025-12-12 03:55:11,989 INFO uvicorn.error: Started server process [1]
+2025-12-12 03:55:11,990 INFO uvicorn.error: Waiting for application startup.
+2025-12-12 03:55:11,991 INFO uvicorn.error: Application startup complete.
+2025-12-12 03:55:11,993 INFO uvicorn.error: Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-12-12 03:55:38,507 INFO uvicorn.access: 192.168.16.1:33762 - "GET /docs HTTP/1.1" 200
+2025-12-12 03:55:38,868 INFO uvicorn.access: 192.168.16.1:33762 - "GET /openapi.json HTTP/1.1" 200
+2025-12-12 03:55:52,090 INFO uvicorn.access: 192.168.16.1:33764 - "POST /query HTTP/1.1" 422
+2025-12-12 04:05:07,982 INFO uvicorn.error: Shutting down
+2025-12-12 04:05:08,084 INFO uvicorn.error: Waiting for application shutdown.
+2025-12-12 04:05:08,085 INFO uvicorn.error: Application shutdown complete.
+2025-12-12 04:05:08,086 INFO uvicorn.error: Finished server process [1]
+2025-12-12 11:05:26 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:05:26,369 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:05:33 [INFO] [__main__] Router mounted successfully.
+2025-12-12 04:05:33,552 INFO __main__: Router mounted successfully.
+2025-12-12 11:05:33 [INFO] [app.main] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:05:33,620 INFO app.main: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:05:33 [INFO] [app.main] Router mounted successfully.
+2025-12-12 04:05:33,627 INFO app.main: Router mounted successfully.
+2025-12-12 04:05:33,628 INFO uvicorn.error: Started server process [1]
+2025-12-12 04:05:33,629 INFO uvicorn.error: Waiting for application startup.
+2025-12-12 04:05:33,630 INFO uvicorn.error: Application startup complete.
+2025-12-12 04:05:33,633 INFO uvicorn.error: Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-12-12 04:34:04,219 INFO uvicorn.error: Shutting down
+2025-12-12 04:34:04,322 INFO uvicorn.error: Waiting for application shutdown.
+2025-12-12 04:34:04,323 INFO uvicorn.error: Application shutdown complete.
+2025-12-12 04:34:04,324 INFO uvicorn.error: Finished server process [1]
+2025-12-12 11:41:06 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:41:06,877 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:41:14 [INFO] [__main__] Router mounted successfully.
+2025-12-12 04:41:14,223 INFO __main__: Router mounted successfully.
+2025-12-12 11:41:14 [INFO] [app.main] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:41:14,296 INFO app.main: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:41:14 [INFO] [app.main] Router mounted successfully.
+2025-12-12 04:41:14,303 INFO app.main: Router mounted successfully.
+2025-12-12 04:41:14,305 INFO uvicorn.error: Started server process [1]
+2025-12-12 04:41:14,305 INFO uvicorn.error: Waiting for application startup.
+2025-12-12 04:41:14,307 INFO uvicorn.error: Application startup complete.
+2025-12-12 04:41:14,308 INFO uvicorn.error: Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-12-12 04:41:43,494 INFO uvicorn.access: 192.168.48.1:44332 - "GET /docs HTTP/1.1" 200
+2025-12-12 04:41:43,978 INFO uvicorn.access: 192.168.48.1:44332 - "GET /openapi.json HTTP/1.1" 200
+2025-12-12 11:43:02 [INFO] [app.routers.rag] Selected table: public.bom_son_data (score=0.552)
+2025-12-12 04:43:02,979 INFO app.routers.rag: Selected table: public.bom_son_data (score=0.552)
+2025-12-12 11:43:03 [INFO] [app.routers.rag] Query vec dim=4096, DB vec dim for public.bom_son_data=8548
+2025-12-12 04:43:03,557 INFO app.routers.rag: Query vec dim=4096, DB vec dim for public.bom_son_data=8548
+2025-12-12 11:43:03 [INFO] [app.routers.rag] Aligned query vec dim=8548
+2025-12-12 04:43:03,558 INFO app.routers.rag: Aligned query vec dim=8548
+2025-12-12 11:43:03 [WARNING] [app.db] Cosine query failed on public.bom_son_data: operator does not exist: vector <=> double precision[]
+LINE 4:                     (1 - (embedding <=> $1))::double precisi...
+                                            ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.. Falling back to Euclidean.
+2025-12-12 04:43:03,629 WARNING app.db: Cosine query failed on public.bom_son_data: operator does not exist: vector <=> double precision[]
+LINE 4:                     (1 - (embedding <=> $1))::double precisi...
+                                            ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.. Falling back to Euclidean.
+2025-12-12 11:43:03 [ERROR] [app.routers.rag] Unhandled error in /query: operator does not exist: vector <-> double precision[]
+LINE 4:                     (1.0 / (1.0 + (embedding <-> $1)))::doub...
+                                                     ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+Traceback (most recent call last):
+  File "/app/app/db.py", line 108, in _table_topk
+    cur.execute(sql, (param_vec, param_vec, top_k))
+  File "/usr/local/lib/python3.11/site-packages/psycopg/cursor.py", line 97, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: operator does not exist: vector <=> double precision[]
+LINE 4:                     (1 - (embedding <=> $1))::double precisi...
+                                            ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/app/routers/rag.py", line 70, in query_rag
+    hits = similarity_search_table(schema, table, query_vec_aligned, top_k=top_k, min_score=min_score)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/db.py", line 129, in similarity_search_table
+    rows = _table_topk(schema, table, query_vec, top_k)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/db.py", line 125, in _table_topk
+    cur.execute(sql, (param_vec, param_vec, top_k))
+  File "/usr/local/lib/python3.11/site-packages/psycopg/cursor.py", line 97, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: operator does not exist: vector <-> double precision[]
+LINE 4:                     (1.0 / (1.0 + (embedding <-> $1)))::doub...
+                                                     ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2025-12-12 04:43:03,695 ERROR app.routers.rag: Unhandled error in /query: operator does not exist: vector <-> double precision[]
+LINE 4:                     (1.0 / (1.0 + (embedding <-> $1)))::doub...
+                                                     ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+Traceback (most recent call last):
+  File "/app/app/db.py", line 108, in _table_topk
+    cur.execute(sql, (param_vec, param_vec, top_k))
+  File "/usr/local/lib/python3.11/site-packages/psycopg/cursor.py", line 97, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: operator does not exist: vector <=> double precision[]
+LINE 4:                     (1 - (embedding <=> $1))::double precisi...
+                                            ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/app/app/routers/rag.py", line 70, in query_rag
+    hits = similarity_search_table(schema, table, query_vec_aligned, top_k=top_k, min_score=min_score)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/db.py", line 129, in similarity_search_table
+    rows = _table_topk(schema, table, query_vec, top_k)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/app/app/db.py", line 125, in _table_topk
+    cur.execute(sql, (param_vec, param_vec, top_k))
+  File "/usr/local/lib/python3.11/site-packages/psycopg/cursor.py", line 97, in execute
+    raise ex.with_traceback(None)
+psycopg.errors.UndefinedFunction: operator does not exist: vector <-> double precision[]
+LINE 4:                     (1.0 / (1.0 + (embedding <-> $1)))::doub...
+                                                     ^
+HINT:  No operator matches the given name and argument types. You might need to add explicit type casts.
+2025-12-12 04:43:03,700 INFO uvicorn.access: 192.168.48.1:59592 - "POST /query HTTP/1.1" 500
+2025-12-12 04:53:17,799 INFO uvicorn.error: Shutting down
+2025-12-12 11:53:32 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:32,982 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:33 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:33,431 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:35 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:35,202 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:35 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:35,520 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:37 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:37,351 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:37 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:37,667 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:39 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:39,763 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:40 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:40,107 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:42 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:42,562 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:42 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:42,909 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:46 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:46,306 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:46 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:46,698 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:53:51 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:53:51,753 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:53:52 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:53:52,117 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:54:00 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:54:00,370 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:54:00 [ERROR] [__main__] Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 04:54:00,701 ERROR __main__: Failed to mount router: name '_on_connect' is not defined
+Traceback (most recent call last):
+  File "/app/app/main.py", line 69, in <module>
+    from app.routers.rag import rag_router
+  File "/app/app/routers/rag.py", line 7, in <module>
+    from app.db import health_check_db, similarity_search_table, count_documents_per_table, get_embedding_dimension
+  File "/app/app/db.py", line 18, in <module>
+    pool = ConnectionPool(conninfo=dsn, kwargs={"row_factory": dict_row}, open=_on_connect)
+                                                                               ^^^^^^^^^^^
+NameError: name '_on_connect' is not defined
+2025-12-12 11:54:40 [INFO] [__main__] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:54:40,716 INFO __main__: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:54:47 [INFO] [__main__] Router mounted successfully.
+2025-12-12 04:54:47,099 INFO __main__: Router mounted successfully.
+2025-12-12 11:54:47 [INFO] [app.main] Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 04:54:47,145 INFO app.main: Environment summary: PG=host.docker.internal:5432 DB=ultimate_advisor OLLAMA_HOST=http://ollama:11434 EMB_MODEL=qwen3-embedding:latest GEMINI_MODEL=gemini-2.0-flash RELOAD=False
+2025-12-12 11:54:47 [INFO] [app.main] Router mounted successfully.
+2025-12-12 04:54:47,151 INFO app.main: Router mounted successfully.
+2025-12-12 04:54:47,152 INFO uvicorn.error: Started server process [1]
+2025-12-12 04:54:47,152 INFO uvicorn.error: Waiting for application startup.
+2025-12-12 04:54:47,153 INFO uvicorn.error: Application startup complete.
+2025-12-12 04:54:47,155 INFO uvicorn.error: Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
