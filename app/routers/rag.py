@@ -22,7 +22,7 @@ def _align_vector_dim(vec: List[float], target_dim: Optional[int]) -> List[float
     - Nếu vec dài hơn: cắt bớt.
     - Nếu vec ngắn hơn: padding 0.
     """
-    print(f"Aligning vector dimension to target_dim: ")
+    log.debug("Aligning vector dimension to target_dim: %s", target_dim)
     if not isinstance(vec, list) or target_dim is None:
         return vec
     if len(vec) == target_dim:
@@ -70,7 +70,7 @@ async def query_rag(
         schema, table, table_score = selected
 
         #  lay duoc table query
-        print(f"Selected table: {schema}.{table} (score={table_score:.3f})")
+        log.info("Selected table: %s.%s (score=%.3f)", schema, table, table_score)
         
         # 2) Embed query
         query_vec = embed_text(merged_text)
@@ -100,8 +100,8 @@ async def query_rag(
         if not context_strings:
             context_strings = [f"Không tìm thấy tài liệu phù hợp trong cơ sở dữ liệu cho câu hỏi này."]
 
-        print(f"Found {len(used_contexts)} context documents from table {schema}.{table}")  
-        print("User text: ", user_text)
+        log.info("Found %d context documents from table %s.%s", len(used_contexts), schema, table)
+        log.debug("User text: %s", user_text)
         # print("context_strings: ", context_strings)
         answer = generate_answer(user_text or merged_text, context_strings)
 

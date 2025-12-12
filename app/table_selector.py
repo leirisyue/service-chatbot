@@ -33,7 +33,7 @@ class TableSelector:
                 pass
         # Mặc định — cập nhật theo thực tế
         self.tables = [
-            TableSchemaDesc(schema="public", table="assembly_list_data", description="vật iệu, đá, kích thước"),
+            TableSchemaDesc(schema="public", table="bompk_data", description="vật iệu, đá, kích thước"),
             TableSchemaDesc(schema="public", table="bom_son_data", description="vật liệu sơn màu chi tiêt bom"),
         ]
 

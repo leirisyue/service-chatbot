@@ -51,7 +51,7 @@ class TableSelectorLLM:
         self.tables = [
             TableSchemaDesc(
                 schema="public", 
-                table="assembly_list_data",
+                table="bompk_data",
                 description="Chứa thông tin về vật liệu, đá, kích thước, trọng lượng của các assembly/sản phẩm",
                 columns="assembly_name, material_type, stone_type, dimensions, weight"
             ),

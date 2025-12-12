@@ -1,18 +1,14 @@
 Truy cập API tại: http://localhost:8000
+
 Truy cập Swagger UI tại: http://localhost:8000/docs
 
-### 1. tạo môi trường
+### 1. Tạo môi trường
 ```bash
 python -m venv .venv  
 .venv\Scripts\activate
 ```
 
-### 2. Cài thư viện python
-```bash
-python -m pip install -r requirements.txt
-```
-
-### 3. Build lại image từ Dockerfile (không dùng cache)
+### 2. Build lại image từ Dockerfile (không dùng cache)
 ```bash
 docker-compose build --no-cache
 ```

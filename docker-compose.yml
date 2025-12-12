@@ -1,14 +1,42 @@
 version: "3.9"
 
 services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-service-chatbot
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama
+      - ./ollama-entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      APP_EMBEDDING_MODEL: ${APP_EMBEDDING_MODEL:-qwen3-embedding:latest}
+    entrypoint: ["/entrypoint.sh"]
+    restart: unless-stopped
+    # Remove healthcheck to avoid curl dependency; entrypoint waits for TCP port.
+    # healthcheck:
+    #   test: ["CMD", "curl", "-sS", "http://localhost:11434/api/version"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 20
+    #   start_period: 20s
+
   chatbot:
     build: .
-    container_name: rag-chatbot
+    container_name: rag-service-chatbot
     env_file:
       - .env
+    environment:
+      OLLAMA_HOST: http://ollama:11434
     ports:
       - "8000:8000"
     restart: unless-stopped
-    # Nếu cần truy cập host Ollama qua host.docker.internal, thêm:
+    depends_on:
+      - ollama
+    volumes:
+      - ./logs:/app/logs
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  ollama:
