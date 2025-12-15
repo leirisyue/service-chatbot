@@ -49,7 +49,7 @@ def list_embedding_tables() -> List[Tuple[str, str]]:
     SELECT c.table_schema, c.table_name
     FROM information_schema.columns c
     WHERE c.column_name='embedding'
-      AND c.table_schema NOT IN ('pg_catalog','information_schema');
+        AND c.table_schema NOT IN ('pg_catalog','information_schema');
     """
     with pool.connection() as conn, conn.cursor() as cur:
         cur.execute(q)
