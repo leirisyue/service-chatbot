@@ -305,7 +305,6 @@ function App() {
     setActiveChat(null);
     setCurrentMessages([]);
     setCurrentSourceDocuments([]);
-    console.log("🚀 ~ handleNewChat ~ handleNewChat:", handleNewChat);
   };
 
   const handleSelectChat = (chatId: string) => {
