@@ -20,7 +20,7 @@ function App() {
   });
   const [suggestedPrompts, setSuggestedPrompts] = useState([
     "🔍 Tìm sản phẩm",
-    "🧱 Tìm nguyên vật liệu", 
+    "🧱 Tìm nguyên vật liệu",
     "💰 Tính chi phí",
     "📋 Danh sách nhóm vật liệu"
   ]);
@@ -67,12 +67,12 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
 
     try {
       const response = await sendMessage(sessionId, message, context);
-      
+
       // Cập nhật context nếu có
       if (response.context) {
         setContext(prev => ({ ...prev, ...response.context }));
       }
-      
+
       if (response.products) {
         setContext(prev => ({
           ...prev,
@@ -80,7 +80,7 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
           last_search_results: response.products.map(p => p.headcode)
         }));
       }
-      
+
       if (response.materials) {
         setContext(prev => ({
           ...prev,
@@ -95,9 +95,9 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
         data: response,
         timestamp: Date.now()
       };
-      
+
       setMessages(prev => [...prev, botMessage]);
-      
+
       // Cập nhật suggested prompts
       if (response.suggested_prompts) {
         setSuggestedPrompts(response.suggested_prompts);
@@ -117,10 +117,10 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
 
   const handleImageSearch = async (file) => {
     setIsLoading(true);
-    
+
     try {
       const response = await searchByImage(file);
-      
+
       // Thêm user message
       const userMessage = {
         role: 'user',
@@ -136,9 +136,9 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
         data: response,
         timestamp: Date.now()
       };
-      
+
       setMessages(prev => [...prev, botMessage]);
-      
+
       // Cập nhật context
       if (response.products) {
         setContext(prev => ({
@@ -147,7 +147,7 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
           last_search_results: response.products.map(p => p.headcode)
         }));
       }
-      
+
       // Cập nhật suggested prompts
       if (response.products && response.products.length > 0) {
         const firstHeadcode = response.products[0].headcode;
@@ -180,11 +180,11 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
     });
     setSuggestedPrompts([
       "🔍 Tìm sản phẩm",
-      "🧱 Tìm nguyên vật liệu", 
+      "🧱 Tìm nguyên vật liệu",
       "💰 Tính chi phí",
       "📋 Danh sách nhóm vật liệu"
     ]);
-    
+
     // Thêm welcome message lại
     const welcomeMessage = {
       role: 'bot',
@@ -221,27 +221,27 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
               Trợ Lý AI Nội Thất Thông Minh - Hỗ trợ Sản phẩm & Vật liệu
             </p>
           </div>
-          
+
           <ChatContainer
             messages={messages}
             isLoading={isLoading}
           />
-          
+
           <div className="input-section">
-            <SuggestedPrompts
+            {/* <SuggestedPrompts
               prompts={suggestedPrompts}
               onSelect={handleSendMessage}
-            />
-            
+            /> */}
+
             <div className="input-row">
               <ChatInput
                 onSendMessage={handleSendMessage}
                 disabled={isLoading}
               />
-              <ImageUpload
+              {/* <ImageUpload
                 onImageUpload={handleImageSearch}
                 disabled={isLoading}
-              />
+              /> */}
             </div>
           </div>
         </div>

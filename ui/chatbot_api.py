@@ -20,9 +20,9 @@ import io
 # ========================================
 
 DB_CONFIG = {
-    "dbname": "PRODUCT",
+    "dbname": "PTHSP_backup",
     "user": "postgres",
-    "password": "123456",
+    "password": "postgres",
     "host": "localhost",
     "port": "5432"
 }
@@ -88,10 +88,6 @@ def generate_embedding(text: str):
     except Exception as e:
         print(f"❌ Lỗi embedding: {e}")
         return None
-
-
-
-
 
 # ========================================
 # ========================================
@@ -317,21 +313,21 @@ def auto_classify_material(material_name: str, id_sap: str = "") -> Dict:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     prompt = f"""
-Phân loại nguyên vật liệu nội thất:
+                Phân loại nguyên vật liệu nội thất:
 
-Tên: "{material_name}"
-Mã: "{id_sap}"
+                Tên: "{material_name}"
+                Mã: "{id_sap}"
 
-Xác định:
-1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
-2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
+                Xác định:
+                1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
+                2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
 
-OUTPUT JSON ONLY:
-{{
-  "material_group": "...",
-  "material_subgroup": "..."
-}}
-"""
+                OUTPUT JSON ONLY:
+                {{
+                "material_group": "...",
+                "material_subgroup": "..."
+                }}
+            """
     
     response_text = call_gemini_with_retry(model, prompt)
     
@@ -360,8 +356,7 @@ OUTPUT JSON ONLY:
 # [NEW] CHAT HISTORY
 # ========================================
 
-def save_chat_history(session_id: str, user_message: str, bot_response: str, 
-                     intent: str, params: Dict, result_count: int):
+def save_chat_history(session_id: str, user_message: str, bot_response: str, intent: str, params: Dict, result_count: int):
     """Lưu lịch sử chat để học"""
     try:
         conn = get_db()
@@ -2207,9 +2202,6 @@ def classify_pending_materials():
         }
 
 
-
-
-
 # ========================================
 # GENERATE EMBEDDINGS
 # ========================================
@@ -2428,11 +2420,6 @@ def root():
             "debug": "GET /debug/products, /debug/materials, /debug/chat-history"
         }
     }
-
-
-
-
-
 
 
 

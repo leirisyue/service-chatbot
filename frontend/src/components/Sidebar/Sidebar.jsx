@@ -179,7 +179,7 @@ function Sidebar({ sessionId, onResetChat }) {
         </div>
 
         {/* BOM Import */}
-        <div className="sidebar-card">
+        {/* <div className="sidebar-card">
           <h4>📊 Định Mức (BOM)</h4>
           <p className="help-text">Required: product_headcode</p>
           <p className="help-text">Optional: material_id_sap, quantity</p>
@@ -209,10 +209,10 @@ function Sidebar({ sessionId, onResetChat }) {
               </div>
             </div>
           )}
-        </div>
+        </div> */}
       </div>
 
-      <div className="sidebar-section">
+      {/* <div className="sidebar-section">
         <h3>🧠 Vector Embeddings</h3>
         <div className="button-group">
           <button
@@ -230,7 +230,7 @@ function Sidebar({ sessionId, onResetChat }) {
             ⚡ Materials
           </button>
         </div>
-      </div>
+      </div> */}
 
       <div className="sidebar-section">
         <h3>🔍 Debug Info</h3>
