@@ -1,9 +1,15 @@
 import axios from 'axios';
 
 const API_URL = 'http://127.0.0.1:8000';
+const API_URL_CHATBOT = 'http://127.0.0.1:8080';
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 30000,
+});
+
+const api_Chatbot = axios.create({
+  baseURL: API_URL_CHATBOT,
   timeout: 30000,
 });
 
@@ -16,6 +22,15 @@ export const sendMessage = async (sessionId, message, context) => {
   });
   return response.data;
 };
+
+export const queryChat = async (min_score, text, top_k)=>{
+    const response = await api_Chatbot.post('/api/query', {
+    min_score,
+    text,
+    top_k
+  });
+  return response.data;
+}
 
 export const searchByImage = async (file) => {
   const formData = new FormData();

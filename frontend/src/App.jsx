@@ -6,7 +6,7 @@ import ChatInput from './components/Input/ChatInput';
 import SuggestedPrompts from './components/Input/SuggestedPrompts';
 import ImageUpload from './components/Input/ImageUpload';
 import MainLayout from './components/Layout/MainLayout';
-import { sendMessage, searchByImage } from './services/api';
+import { sendMessage, searchByImage, queryChat } from './services/api';
 import './App.css';
 
 function App() {
@@ -55,6 +55,7 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
     }
   }, []);
 
+  // main message handler
   const handleSendMessage = async (message) => {
     // Thêm message của user
     const userMessage = {
@@ -67,6 +68,10 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
 
     try {
       const response = await sendMessage(sessionId, message, context);
+      // const min_score = 0.5; // example value
+      // const text = message;
+      // const top_k = 5; // example value
+      // const response = await queryChat(min_score, text, top_k);
 
       // Cập nhật context nếu có
       if (response.context) {
@@ -228,10 +233,10 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
           />
 
           <div className="input-section">
-            {/* <SuggestedPrompts
+            <SuggestedPrompts
               prompts={suggestedPrompts}
               onSelect={handleSendMessage}
-            /> */}
+            />
 
             <div className="input-row">
               <ChatInput

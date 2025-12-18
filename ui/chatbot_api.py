@@ -20,7 +20,7 @@ import io
 # ========================================
 
 DB_CONFIG = {
-    "dbname": "PTHSP_backup",
+    "dbname": "db_vector",
     "user": "postgres",
     "password": "postgres",
     "host": "localhost",
@@ -2208,7 +2208,7 @@ def classify_pending_materials():
 
 @app.post("/generate-embeddings")
 def generate_product_embeddings():
-    """Táº¡o embeddings cho products"""
+    
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -2261,7 +2261,7 @@ def generate_product_embeddings():
 
 @app.post("/generate-material-embeddings")
 def generate_material_embeddings():
-    """Táº¡o embeddings cho materials"""
+    
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -2318,7 +2318,7 @@ def generate_material_embeddings():
 
 @app.get("/debug/products")
 def debug_products():
-    """Debug info vá» products"""
+    
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -2342,7 +2342,7 @@ def debug_products():
 
 @app.get("/debug/materials")
 def debug_materials():
-    """Debug info vá» materials"""
+    
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -2366,7 +2366,6 @@ def debug_materials():
 
 @app.get("/debug/chat-history")
 def debug_chat_history():
-    """Xem lá»‹ch sá»­ chat gáº§n Ä‘Ã¢y"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     

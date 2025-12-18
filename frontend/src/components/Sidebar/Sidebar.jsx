@@ -114,11 +114,11 @@ function Sidebar({ sessionId, onResetChat }) {
         <span className="version-badge">V4.5</span>
       </div>
       
-      <div className="sidebar-section">
-        <h3>📤 Import & Phân Loại</h3>
+      {/* <div className="sidebar-section"> */}
+        {/* <h3>📤 Import & Phân Loại</h3> */}
         
         {/* Products Import */}
-        <div className="sidebar-card">
+        {/* <div className="sidebar-card">
           <h4>📦 Sản Phẩm</h4>
           <p className="help-text">Required: headcode, id_sap, product_name</p>
           <input
@@ -151,10 +151,10 @@ function Sidebar({ sessionId, onResetChat }) {
               )}
             </div>
           )}
-        </div>
+        </div> */}
 
         {/* Materials Import */}
-        <div className="sidebar-card">
+        {/* <div className="sidebar-card">
           <h4>🧱 Vật Liệu</h4>
           <p className="help-text">Required: id_sap, material_name, material_group</p>
           <input
@@ -176,7 +176,7 @@ function Sidebar({ sessionId, onResetChat }) {
           >
             🤖 AI Classify Materials
           </button>
-        </div>
+        </div> */}
 
         {/* BOM Import */}
         {/* <div className="sidebar-card">
@@ -210,7 +210,7 @@ function Sidebar({ sessionId, onResetChat }) {
             </div>
           )}
         </div> */}
-      </div>
+      {/* </div> */}
 
       {/* <div className="sidebar-section">
         <h3>🧠 Vector Embeddings</h3>
@@ -232,7 +232,7 @@ function Sidebar({ sessionId, onResetChat }) {
         </div>
       </div> */}
 
-      <div className="sidebar-section">
+      {/* <div className="sidebar-section">
         <h3>🔍 Debug Info</h3>
         <button
           className="btn-secondary"
@@ -248,7 +248,7 @@ function Sidebar({ sessionId, onResetChat }) {
             <p><strong>Materials:</strong> {debugInfo.materials?.total_materials || 0} ({debugInfo.materials?.coverage_percent || 0}%)</p>
           </div>
         )}
-      </div>
+      </div> */}
 
       <div className="sidebar-footer">
         <button
