@@ -225,7 +225,7 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
               <span className="version-badge">V4.0</span>
             </h1>
             <p className="sub-title">
-              Trợ Lý AI Nội Thất Thông Minh - Hỗ trợ Sản phẩm & Vật liệu
+              Trợ Lý AI Thông Minh - Hỗ trợ Báo giá vật tư
             </p>
           </div>
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './MainLayout.css';
 
 function MainLayout({ sidebar, mainContent }) {
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
   const toggleSidebar = () => {
     setIsSidebarVisible(!isSidebarVisible);

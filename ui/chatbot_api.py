@@ -27,7 +27,7 @@ DB_CONFIG = {
     "port": "5432"
 }
 
-GEMINI_API_KEY = "AIzaSyArwrJI-54YVt7ohaWCPjnBR94iRRsoJSg"
+GEMINI_API_KEY = "AIzaSyBBIQbyDW28I76wNj5obdX8xlov4bZi2Ow"
 genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="AA Corporation Chatbot API", version="4.0")

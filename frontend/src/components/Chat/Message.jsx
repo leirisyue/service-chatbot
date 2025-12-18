@@ -1,10 +1,12 @@
 import React from 'react';
 import ProductCard from './ProductCard';
 import MaterialCard from './MaterialCard';
+import Grid from '@mui/material/Grid';
+import Box from '@mui/material/Box';
 
 function Message({ message }) {
   const isUser = message.role === 'user';
-  
+
   const renderContent = () => {
     if (typeof message.content === 'string') {
       return message.content.split('\n').map((line, i) => (
@@ -26,24 +28,29 @@ function Message({ message }) {
         <div className="message-text">
           {renderContent()}
         </div>
-        
+
         {/* Hiển thị sản phẩm */}
         {!isUser && message.data?.products && (
           <div className="products-section">
-            <h3>📦 Kết quả tìm kiếm sản phẩm ({message.data.products.length} sản phẩm)</h3>
-            <div className="products-grid">
+            <h3>📦 Kết quả tìm kiếm sản phẩm ({message?.data?.products?.length} sản phẩm)</h3>
+            <Grid container spacing={2}>
+              {/* <div className="products-grid"> */}
               {message.data.products.slice(0, 9).map((product, index) => (
-                <ProductCard
-                  key={index}
-                  product={product}
-                  onMaterialClick={() => {/* Handle click */}}
-                  onPriceClick={() => {/* Handle click */}}
-                />
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <Box sx={{ height: '100%' }}>
+                    <ProductCard
+                      key={index}
+                      product={product}
+                      onMaterialClick={() => {/* Handle click */ }}
+                      onPriceClick={() => {/* Handle click */ }}
+                    /></Box>
+                </Grid>
               ))}
-            </div>
+              {/* </div> */}
+            </Grid>
           </div>
         )}
-        
+
         {/* Hiển thị vật liệu */}
         {!isUser && message.data?.materials && (
           <div className="materials-section">
@@ -53,13 +60,13 @@ function Message({ message }) {
                 <MaterialCard
                   key={index}
                   material={material}
-                  onDetailClick={() => {/* Handle click */}}
+                  onDetailClick={() => {/* Handle click */ }}
                 />
               ))}
             </div>
           </div>
         )}
-        
+
         {/* Hiển thị chi tiết vật liệu */}
         {!isUser && message.data?.material_detail && (
           <div className="material-detail-section">

@@ -4,7 +4,7 @@ function ProductCard({ product, onMaterialClick, onPriceClick }) {
   return (
     <div className="product-card">
       <div className="product-header">
-        <h4>{product.product_name?.slice(0, 50)}...</h4>
+        <h4>{product.product_name?.slice(0, 50)}</h4>
         <span className="product-code">🏷️ {product.headcode}</span>
       </div>
       
