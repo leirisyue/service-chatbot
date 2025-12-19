@@ -110,6 +110,9 @@ st.markdown("""
 # SESSION STATE
 # ========================================
 
+if "debug_mode" not in st.session_state:
+    st.session_state.debug_mode = False
+
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
 
@@ -257,14 +260,16 @@ def process_user_input(user_input: str):
     
     st.rerun()
 
-# ========================================
-# SIDEBAR
-# ========================================
 
 # ========================================
 # SIDEBAR
 # ========================================
 
+
+if st.session_state.debug_mode:
+    st.success("✅ Debug mode ON - Scores hiển thị trong kết quả")
+else:
+    st.info("Debug mode OFF")
 with st.sidebar:
     st.markdown('<div style="text-align: center;"><h2>⚙️ Quản Trị Hệ Thống</h2><span class="version-badge">V4.5</span></div>', unsafe_allow_html=True)
     
@@ -483,6 +488,27 @@ with st.sidebar:
             except:
                 st.warning("Server Offline")
 
+
+    st.divider()
+
+    # Debug Mode Toggle
+    st.markdown("### 🐛 Developer Mode")
+
+    col_debug1, col_debug2 = st.columns([3, 1])
+
+    with col_debug1:
+        if st.session_state.debug_mode:
+            st.success("✅ Debug ON - Scores hiển thị")
+        else:
+            st.info("❌ Debug OFF")
+
+    with col_debug2:
+        if st.button("🔧 Toggle", use_container_width=True):
+            st.session_state.debug_mode = not st.session_state.debug_mode
+            st.rerun()
+
+
+    
     st.divider()
     
     if st.button("🔄 Reset Chat Session", use_container_width=True):
@@ -653,13 +679,30 @@ with chat_container:
                             material_primary = product.get('material_primary', 'N/A')
                             project = product.get('project', '')
                             
-                            # Hiển thị feedback boost info nếu có
-                            # feedback_info = ""
-                            # if product.get('feedback_count', 0) > 0:
-                            #     feedback_info = f"<p style='color: #10b981;'>⭐ {product['feedback_count']} người đã chọn</p>"
-                            
 
-# 🆕 Hiển thị feedback boost info + ranking badge
+                            # ✅ THÊM: Debug info
+                            debug_info = ""
+                            if st.session_state.debug_mode:
+                                original_rank = product.get('original_rank', 'N/A')
+                                final_rank = product.get('final_rank', 'N/A')
+                                feedback_count = product.get('feedback_count', 0)
+                                similarity = product.get('similarity', 0)
+                                final_score = product.get('final_score', 0)
+                                
+                                debug_info = f"""
+                                <div style='background: #1e293b; color: #94a3b8; padding: 0.5rem; 
+                                            border-radius: 4px; font-size: 0.7rem; margin-top: 0.5rem;'>
+                                    <b>🐛 DEBUG:</b><br/>
+                                    Rank: {original_rank} → {final_rank}<br/>
+                                    Similarity: {similarity:.3f}<br/>
+                                    Final Score: {final_score:.3f}<br/>
+                                    Feedback: {feedback_count} lượt
+                                </div>
+                                """
+
+
+
+                            # 🆕 Hiển thị feedback boost info + ranking badge
                             feedback_info = ""
                             if product.get('feedback_count', 0) > 0:
                                 # Tính thay đổi ranking
@@ -683,7 +726,9 @@ with chat_container:
                                 <p>🏷️ <b>{headcode}</b></p>
                                 <p>📦 {category} - {sub_category}</p>
                                 <p>🪵 {material_primary}</p>
-                                {feedback_info}
+                                <p>{feedback_info}<p>
+                                <p>{debug_info}<p>
+                            </div>
                             """, unsafe_allow_html=True)
                             
                             # Hiển thị matched materials nếu là cross-table search

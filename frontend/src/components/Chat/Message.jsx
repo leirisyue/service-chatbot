@@ -82,7 +82,6 @@ function Message({ message, onSendMessage }) {
           <div className="materials-section">
             <h3>🧱 Kết quả tìm kiếm nguyên vật liệu ({message.data.materials.length} vật liệu)</h3>
             <Grid container spacing={2}>
-
               {message.data.materials.slice(0, 9).map((material, index) => (
                 <Grid size={{ xs: 12, md: 6, lg: 4 }}>
                   <Box sx={{ height: '100%' }}>
@@ -95,7 +94,6 @@ function Message({ message, onSendMessage }) {
                 </Grid>
               ))}
             </Grid>
-
           </div>
         )}
 

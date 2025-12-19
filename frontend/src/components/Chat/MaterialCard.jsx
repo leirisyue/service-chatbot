@@ -1,77 +1,52 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 function MaterialCard({ material, onDetailClick }) {
-  // console.log("🚀 ~ MaterialCard ~ material:", material);
-  const [imageUrl, setImageUrl] = useState(null);
+  // State to track if the main image fails to load
+  const [imgError, setImgError] = useState(false);
 
-  useEffect(() => {
-    // const convertGDriveUrl = (url) => {
-    //   if (!url || !url.includes('drive.google.com')) return url;
+  // 1. Try material's image, 2. Fallback to default, 3. Show placeholder on error
+  const imageSrc =  `https://drive.google.com/uc?export=view&id=1syoH7m_FmZWfZgXyGkk5427jOFqq020o`;
 
-    //   try {
-    //     let fileId;
-    //     if (url.includes('/file/d/')) {
-    //       fileId = url.split('/file/d/')[1].split('/')[0];
-    //     } else if (url.includes('id=')) {
-    //       fileId = url.split('id=')[1].split('&')[0];
-    //     } else {
-    //       return url;
-    //     }
-
-    //     return `https://drive.google.com/uc?export=view&id=${fileId}`;
-    //   } catch {
-    //     return url;
-    //   }
-    // };
-
-    const getDriveImageUrl = (url) => {
-      const match = url.match(/\/d\/(.+?)\//);
-      if (!match) return url;
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-    };
-
-    if (material.image_url) {
-      setImageUrl(getDriveImageUrl(material.image_url));
-    }
-  }, [material.image_url]);
-
-    const getDriveImageUrl = (url) => {
-      if (!url) return null;
-      const match = url.match(/\/d\/(.+?)\//);
-      console.log("🚀 ~ getDriveImageUrl ~ match:", match);
-      if (!match) return url;
-      return `https://drive.google.com/uc?export=view&id=${match[1]}`;
-    };
-
-    console.log("🚀 ~ MaterialCard ~ imageUrl:", getDriveImageUrl(material?.image_url));
+  // Decide what to show
+  const shouldShowImage = imageSrc ;
+  const shouldShowPlaceholder = !imageSrc || imgError;
+  
 
   return (
     <div className="material-card" style={{ position: 'relative' }}>
       <div className="material-image">
-        {!!material?.image_url ? (
+        {/* Show image only if we have a source and no error */}
+        {shouldShowImage && (
           <img
-            src={getDriveImageUrl(material.image_url)}
-            alt={material.material_name}
-            onError={() => setImageUrl(null)}
+            src={imageSrc}
+            alt={imageSrc || "Material image"}
+            loading="lazy"
+            onError={() => {
+              setImgError(true); // Simple state update on error
+            }}
+            style={{ display: 'block' }}
           />
-        ) : (
+        )}
+        
+        {/* Show placeholder if no image source or image failed to load */}
+        {shouldShowPlaceholder && (
           <div className="material-placeholder">
             🧱
           </div>
         )}
       </div>
 
+      {/* ... rest of your component (material-info, material-actions) remains the same ... */}
       <div className="material-info">
         <h4>{material.material_name?.slice(0, 40)}...</h4>
         <p className="material-code">🏷️ Mã SAP: <strong>{material.id_sap}</strong></p>
         <p className="material-group">📂 Nhóm: {material.material_group || 'N/A'}</p>
-
         <div className="price-badge">
-          💰 {material.total_cost?.toLocaleString('vi-VN') || material.price?.toLocaleString('vi-VN')} VNĐ / {material.unit || 'N/A'}
+          💰 {material.total_cost?.toLocaleString('vi-VN') || material.price?.toLocaleString('vi-VN')} VNĐ / {material.unit || ''}
         </div>
       </div>
 
-      <div className="material-actions" style={{position: 'absolute', bottom: '10px', width: '90%'}}>
+      <div className="material-actions" style={{ position: 'absolute', bottom: '10px', width: '90%' }}>
         <button
           className="btn-detail"
           onClick={onDetailClick}

@@ -27,7 +27,7 @@ DB_CONFIG = {
     "port": "5432"
 }
 
-GEMINI_API_KEY = "AIzaSyCMfXx47Z1aWxUa0RA8lwpKOQcBNky8ajw"
+GEMINI_API_KEY = "AIzaSyD-wRkviXIBRLkiLmXlm8DZZYTqj2fvrA4"
 genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="AA Corporation Chatbot API", version="4.0")
@@ -217,8 +217,7 @@ def search_products_hybrid(params: Dict):
                 "project": r.get("project"),
                 "project_id": r.get("project_id"),
                 "similarity": round(1 - r["raw_distance"], 3),
-                "keyword_matched": bool(r.get("keyword_match")),
-                "price": 0.0
+                "keyword_matched": bool(r.get("keyword_match"))
             } for r in results]
             
             print(f"✅ Found {len(products)} products (Hybrid)")
@@ -314,21 +313,21 @@ def auto_classify_material(material_name: str, id_sap: str = "") -> Dict:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     prompt = f"""
-                Phân loại nguyên vật liệu nội thất:
+Phân loại nguyên vật liệu nội thất:
 
-                Tên: "{material_name}"
-                Mã: "{id_sap}"
+Tên: "{material_name}"
+Mã: "{id_sap}"
 
-                Xác định:
-                1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
-                2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
+Xác định:
+1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
+2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
 
-                OUTPUT JSON ONLY:
-                {{
-                "material_group": "...",
-                "material_subgroup": "..."
-                }}
-            """
+OUTPUT JSON ONLY:
+{{
+  "material_group": "...",
+  "material_subgroup": "..."
+}}
+"""
     
     response_text = call_gemini_with_retry(model, prompt)
     
@@ -867,6 +866,11 @@ def search_materials_for_product(product_query: str, params: Dict):
 # [NEW] USER FEEDBACK LEARNING SYSTEM
 # ========================================
 
+
+# ========================================
+# THAY THẾ hàm save_user_feedback (dòng ~615)
+# ========================================
+
 def save_user_feedback(session_id: str, query: str, selected_items: list, 
                        rejected_items: list, search_type: str):
     """
@@ -883,10 +887,17 @@ def save_user_feedback(session_id: str, query: str, selected_items: list,
         conn = get_db()
         cur = conn.cursor()
         
+        # ✅ TẠO EMBEDDING CHO QUERY NGAY KHI LƯU
+        query_embedding = generate_embedding(query)
+        
+        if not query_embedding:
+            print("⚠️ Không tạo được embedding, vẫn lưu feedback")
+        
         sql = """
             INSERT INTO user_feedback 
-            (session_id, query, selected_items, rejected_items, search_type)
-            VALUES (%s, %s, %s, %s, %s)
+            (session_id, query, selected_items, rejected_items, search_type, query_embedding)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id
         """
         
         cur.execute(sql, (
@@ -894,76 +905,127 @@ def save_user_feedback(session_id: str, query: str, selected_items: list,
             query,
             json.dumps(selected_items),
             json.dumps(rejected_items),
-            search_type
+            search_type,
+            query_embedding  # ✅ LƯU EMBEDDING
         ))
+        
+        feedback_id = cur.fetchone()[0]
         
         conn.commit()
         conn.close()
         
         print(f"💾 Feedback saved: {len(selected_items)} selected, {len(rejected_items)} rejected")
+        print(f"   → Feedback ID: {feedback_id}")
+        print(f"   → Embedding: {'✅ OK' if query_embedding else '❌ NULL'}")
+        
         return True
         
     except Exception as e:
         print(f"❌ Failed to save feedback: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
+# ======================================
+# THAY THẾ hàm get_feedback_boost_for_query (dòng ~900)
+# ========================================
 
-def get_feedback_boost_for_query(query: str, search_type: str) -> Dict:
+def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = 0.7) -> Dict:
     """
-    📊 Lấy thống kê feedback từ lịch sử để boost ranking
+    📊 V5.0 - Vector-based feedback matching
+    Tìm feedback từ các query TƯƠNG TỰ (không cần trùng 100%)
     
-    Returns: {
-        "headcode/id_sap": positive_feedback_count
-    }
+    Args:
+        query: Câu hỏi hiện tại
+        search_type: "product" hoặc "material"
+        similarity_threshold: Ngưỡng độ tương tự (0.7 = 70%)
+    
+    Returns:
+        Dict[item_id, feedback_score]
     """
     try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # Tìm các query tương tự trong lịch sử
+        # 1. Tạo embedding cho query hiện tại
         query_vector = generate_embedding(query)
         
         if not query_vector:
-            conn.close()
+            print("❌ Không tạo được embedding cho query")
             return {}
         
-        # Tìm top 10 queries tương tự có feedback
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # 2. Tìm các feedback có query_embedding tương tự (cosine similarity)
         cur.execute("""
             SELECT 
                 query,
                 selected_items,
-                created_at
+                (1 - (query_embedding <=> %s::vector)) as similarity
             FROM user_feedback
             WHERE search_type = %s
-            ORDER BY created_at DESC
-            LIMIT 50
-        """, (search_type,))
+              AND query_embedding IS NOT NULL
+              AND (1 - (query_embedding <=> %s::vector)) >= %s
+            ORDER BY similarity DESC
+            LIMIT 20
+        """, (query_vector, search_type, query_vector, similarity_threshold))
         
-        feedbacks = cur.fetchall()
+        similar_feedbacks = cur.fetchall()
         conn.close()
         
-        if not feedbacks:
+        if not similar_feedbacks:
+            print(f"ℹ️ Không có feedback tương tự (threshold={similarity_threshold})")
             return {}
         
-        # Đếm số lần mỗi item được chọn
+        # 3. Tính điểm cho từng item (weighted by similarity)
         item_scores = {}
         
-        for fb in feedbacks:
+        print(f"\n{'='*60}")
+        print(f"📊 FEEDBACK BOOST: Tìm thấy {len(similar_feedbacks)} query tương tự")
+        print(f"{'='*60}\n")
+        
+        for fb in similar_feedbacks:
+            sim = fb['similarity']
+            
             try:
-                selected = json.loads(fb['selected_items'])
+                # ✅ FIX: Kiểm tra type trước khi parse
+                selected_items = fb['selected_items']
+                
+                # Nếu là string JSON → parse
+                if isinstance(selected_items, str):
+                    selected = json.loads(selected_items)
+                # Nếu đã là list → dùng luôn
+                elif isinstance(selected_items, list):
+                    selected = selected_items
+                else:
+                    print(f"⚠️ Unknown type for selected_items: {type(selected_items)}")
+                    continue
+                
+                print(f"✅ Query: '{fb['query'][:50]}...' (sim={sim:.2f})")
+                print(f"   → Selected: {selected[:3]}")
+                
                 for item_id in selected:
-                    item_scores[item_id] = item_scores.get(item_id, 0) + 1
-            except:
+                    # Điểm = similarity * 1 (có thể thay bằng decay theo thời gian)
+                    item_scores[item_id] = item_scores.get(item_id, 0) + sim
+                    
+            except Exception as e:
+                print(f"⚠️ Skip feedback: {e}")
                 continue
         
-        print(f"📊 Feedback boost loaded: {len(item_scores)} items have history")
+        if item_scores:
+            print(f"\n📈 Kết quả:")
+            for item_id, score in sorted(item_scores.items(), key=lambda x: x[1], reverse=True)[:5]:
+                print(f"   {item_id}: {score:.2f} điểm")
+        else:
+            print("ℹ️ Không có item nào được boost")
+            
+        print(f"{'='*60}\n")
+        
         return item_scores
         
     except Exception as e:
         print(f"❌ Failed to get feedback boost: {e}")
+        import traceback
+        traceback.print_exc()
         return {}
-
-
 # ========================================
 # THAY THẾ hàm rerank_with_feedback (dòng ~570)
 # Thêm LOG chi tiết
@@ -1051,11 +1113,15 @@ def apply_feedback_to_search(items: list, query: str, search_type: str,
     if not items:
         return items
     
-    # Lấy feedback scores
-    feedback_scores = get_feedback_boost_for_query(query, search_type)
+    # ✅ TĂNG threshold từ 0.7 → 0.85
+    feedback_scores = get_feedback_boost_for_query(
+        query, 
+        search_type,
+        similarity_threshold=0.85  # ✅ CHỈ KHỚP QUERY RẤT GIỐNG NHAU
+    )
     
     if not feedback_scores:
-        print("ℹ️ Không có feedback history cho query này")
+        print("ℹ️ Không có feedback history phù hợp (similarity < 0.85)")
         # Thêm metadata mặc định
         for item in items:
             item['has_feedback'] = False
@@ -1086,6 +1152,29 @@ def apply_feedback_to_search(items: list, query: str, search_type: str,
     
     print(f"✅ Reranking hoàn tất\n")
     return reranked_items
+
+# ========================================
+# HOẶC LÀM THRESHOLD ĐỘNG (tùy chọn)
+# ========================================
+
+def get_adaptive_threshold(query: str) -> float:
+    """
+    Tự động điều chỉnh threshold:
+    - Query dài, cụ thể → threshold thấp (0.75)
+    - Query ngắn, chung chung → threshold cao (0.90)
+    """
+    words = query.split()
+    
+    if len(words) >= 8:
+        return 0.75  # Query dài → dễ dãi hơn
+    elif len(words) >= 5:
+        return 0.82
+    else:
+        return 0.90  # Query ngắn → nghiêm ngặt hơn
+    
+# Dùng trong apply_feedback_to_search:
+# threshold = get_adaptive_threshold(query)
+# feedback_scores = get_feedback_boost_for_query(query, search_type, threshold)
 
 
 def get_ranking_summary(items: list) -> dict:
@@ -1144,7 +1233,7 @@ def format_search_results(results):
     """Format results thành cấu trúc chuẩn"""
     products = []
     for row in results:
-        product = {
+        products.append({
             "headcode": row["headcode"],
             "product_name": row["product_name"],
             "category": row.get("category"),
@@ -1152,11 +1241,8 @@ def format_search_results(results):
             "material_primary": row.get("material_primary"),
             "project": row.get("project"),
             "project_id": row.get("project_id"),
-            "similarity": round(1 - row["distance"], 3) if "distance" in row else None,
-            "price": calculate_product_total_cost(row["headcode"]), 
-            "image_url": row.get("image_url")
-        }
-        products.append(product)
+            "similarity": round(1 - row["distance"], 3) if "distance" in row else None
+        })
     return products
 
 def search_products(params: Dict):
@@ -1883,19 +1969,20 @@ def chat(msg: ChatMessage):
         #         # CROSS-TABLE: Tìm sản phẩm theo vật liệu
         
         # PRODUCT FLOW - CẬP NHẬT V4.8 (Feedback Ranking)
+
         elif intent == "search_product":
             search_result = search_products(params)
             products = search_result.get("products", [])
             
-            # 🆕 ÁP DỤNG FEEDBACK RANKING
+            # ✅ THÊM: Áp dụng feedback ranking
             products = apply_feedback_to_search(
                 products, 
-                user_message,  # Query gốc
+                user_message,
                 search_type="product",
                 id_key="headcode"
             )
             
-            # 🆕 Lấy ranking summary
+            # ✅ THÊM: Lấy ranking summary
             ranking_summary = get_ranking_summary(products)
             
             result_count = len(products)
@@ -1918,7 +2005,7 @@ def chat(msg: ChatMessage):
                 else:
                     response_text = f"✅ Đã tìm thấy **{len(products)} sản phẩm** đúng yêu cầu của bạn."
                     
-                    # 🆕 Hiển thị thông tin ranking nếu có
+                    # ✅ THÊM: Hiển thị thông tin ranking nếu có
                     if ranking_summary['ranking_applied']:
                         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} sản phẩm** được ưu tiên dựa trên lịch sử tìm kiếm."
                     
@@ -1931,8 +2018,8 @@ def chat(msg: ChatMessage):
                     "response": response_text,
                     "products": products,
                     "suggested_prompts": suggested_prompts,
-                    "ranking_summary": ranking_summary,  # 🆕 Thêm vào response
-                    "can_provide_feedback": True  # 🆕 Luôn cho phép feedback
+                    "ranking_summary": ranking_summary,  # ✅ THÊM
+                    "can_provide_feedback": True  # ✅ THÊM
                 }
         
         
@@ -2673,6 +2760,7 @@ async def import_products(file: UploadFile = File(...)):
         
     except Exception as e:
         return {"message": f"❌ Lỗi: {str(e)}"}
+
 
 @app.post("/import/materials")
 async def import_materials(file: UploadFile = File(...)):

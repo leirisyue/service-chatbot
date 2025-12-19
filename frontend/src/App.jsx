@@ -197,15 +197,17 @@ function App() {
     // Thêm welcome message lại
     const welcomeMessage = {
       role: 'bot',
-      content: `👋 Xin chào! Tôi là trợ lý AI của **AA Corporation** (Phiên bản 4.0).\n\n
-Tôi có thể giúp bạn:
-• 🔍 **Tìm kiếm sản phẩm** (bằng mô tả hoặc hình ảnh)
-• 🧱 **Tìm kiếm nguyên vật liệu** (gỗ, da, đá, vải...)
-• 📋 **Xem định mức vật liệu** của sản phẩm
-• 💰 **Tính chi phí** sản phẩm (NVL + Nhân công + Lợi nhuận)
-• 🔗 **Tra cứu** vật liệu được dùng ở sản phẩm/dự án nào
-• 📈 **Xem lịch sử giá** vật liệu\n\n
-Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của bạn!`,
+      content: `
+      👋 Xin chào! Tôi là trợ lý AI của **AA Corporation** (Phiên bản 4.0).\n\n
+      Tôi có thể giúp bạn:
+      • 🔍 **Tìm kiếm sản phẩm** (bằng mô tả hoặc hình ảnh)
+      • 🧱 **Tìm kiếm nguyên vật liệu** (gỗ, da, đá, vải...)
+      • 📋 **Xem định mức vật liệu** của sản phẩm
+      • 💰 **Tính chi phí** sản phẩm (NVL + Nhân công + Lợi nhuận)
+      • 🔗 **Tra cứu** vật liệu được dùng ở sản phẩm/dự án nào
+      • 📈 **Xem lịch sử giá** vật liệu\n\n
+      Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của bạn!
+      `,
       timestamp: Date.now()
     };
     setMessages([welcomeMessage]);
@@ -222,14 +224,14 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
       mainContent={
         <div className="chat-interface">
           <div className="header">
-            <h1 className="main-title">
-              AA Corporation AI Assistant
+            <div className="main-title">
+              <b>AA Corporation AI Assistant</b>
               {/* <span className="version-badge">V4.0</span> */}
               <Chip label="v1.0" />
-            </h1>
-            <p className="sub-title">
+            </div>
+            <div className="sub-title">
               Trợ Lý AI Thông Minh - Hỗ trợ Báo giá vật tư
-            </p>
+            </div>
           </div>
 
           <ChatContainer
