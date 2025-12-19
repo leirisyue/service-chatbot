@@ -7,13 +7,13 @@ function SuggestedPrompts({ prompts, onSelect }) {
       <h4>💡 Gợi ý nhanh:</h4>
       <div className="prompts-grid">
         {prompts.slice(0, 4).map((prompt, index) => (
-          <buttons
+          <button
             key={index}
             className="prompt-button"
             onClick={() => onSelect(prompt)}
           >
             {prompt}
-          </buttons>
+          </button>
         ))}
       </div>
     </div>

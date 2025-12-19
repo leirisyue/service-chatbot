@@ -104,6 +104,7 @@
   box-shadow: var(--card-shadow);
   transition: transform 0.2s, box-shadow 0.2s;
   border-left: 4px solid #667eea;
+  height: 200px;
 }
 
 .product-card:hover {
@@ -191,6 +192,7 @@
   box-shadow: var(--card-shadow);
   transition: transform 0.2s;
   border-left: 4px solid #10b981;
+  height: 360px;
 }
 
 .material-card:hover {

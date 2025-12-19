@@ -68,7 +68,8 @@ function Message({ message, onSendMessage }) {
                       product={product}
                       onMaterialClick={() => handleMaterialClick(product.headcode)}
                       onPriceClick={() => handlePriceClick(product.headcode)}
-                    /></Box>
+                    />
+                  </Box>
                 </Grid>
               ))}
               {/* </div> */}
@@ -80,15 +81,21 @@ function Message({ message, onSendMessage }) {
         {!isUser && message.data?.materials && (
           <div className="materials-section">
             <h3>🧱 Kết quả tìm kiếm nguyên vật liệu ({message.data.materials.length} vật liệu)</h3>
-            <div className="materials-grid">
+            <Grid container spacing={2}>
+
               {message.data.materials.slice(0, 9).map((material, index) => (
-                <MaterialCard
-                  key={index}
-                  material={material}
-                  onDetailClick={() => handleMaterialDetailClick(material.material_name)}
-                />
+                <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+                  <Box sx={{ height: '100%' }}>
+                    <MaterialCard
+                      key={index}
+                      material={material}
+                      onDetailClick={() => handleMaterialDetailClick(material.material_name)}
+                    />
+                  </Box>
+                </Grid>
               ))}
-            </div>
+            </Grid>
+
           </div>
         )}
 

@@ -3,6 +3,7 @@ import requests
 import uuid
 import json
 from io import BytesIO
+import time
 
 API_URL = "http://127.0.0.1:8000"
 
@@ -130,6 +131,39 @@ if "suggested_prompts" not in st.session_state:
         "💰 Tính chi phí",
         "📋 Danh sách nhóm vật liệu"
     ]
+
+if "feedback_selections" not in st.session_state:
+    st.session_state.feedback_selections = {}  # {message_idx: [selected_ids]}
+
+if "pending_feedback" not in st.session_state:
+    st.session_state.pending_feedback = None  # {query, search_type, message_idx}
+
+
+# ========================================
+# HÀM XỬ LÝ FEEDBACK
+# ========================================
+
+def submit_user_feedback(query: str, selected_items: list, search_type: str):
+    """Gửi feedback lên server"""
+    try:
+        response = requests.post(
+            f"{API_URL}/feedback",
+            json={
+                "session_id": st.session_state.session_id,
+                "query": query,
+                "selected_items": selected_items,
+                "rejected_items": [],  # Có thể mở rộng sau
+                "search_type": search_type
+            },
+            timeout=5
+        )
+        
+        if response.status_code == 200:
+            return response.json()
+        return {"message": "Lỗi gửi feedback", "saved": False}
+        
+    except Exception as e:
+        return {"message": f"Lỗi: {str(e)}", "saved": False}
 
 # ========================================
 # HELPER FUNCTIONS
@@ -501,12 +535,113 @@ with chat_container:
             st.markdown(f'<div class="bot-msg">🤖 {content}</div>', unsafe_allow_html=True)
             
             # HIỂN THỊ SẢN PHẨM
+
+
+             # HIỂN THỊ SẢN PHẨM (với feedback selection)
+            # if message.get("data", {}).get("products"):
+            #     products = message["data"]["products"]
+            #     can_feedback = message["data"].get("can_provide_feedback", False)
+            #     search_method = message["data"].get("search_method", "")
+                
+            #     st.markdown("---")
+                
+            #     # Header với thông tin search method
+            #     col_h1, col_h2 = st.columns([3, 1])
+                
+            #     with col_h1:
+            #         st.markdown(f"### 📦 Kết quả tìm kiếm sản phẩm ({len(products)} sản phẩm)")
+                    
+            #         # Hiển thị explanation nếu có
+            #         if message["data"].get("explanation"):
+            #             st.info(f"ℹ️ {message['data']['explanation']}")
+                
+            #     with col_h2:
+            #         # Nút bật/tắt chế độ feedback
+            #         if can_feedback and search_method in ["cross_table", "cross_table_material_to_product"]:
+            #             feedback_mode_key = f"feedback_mode_{idx}"
+                        
+            #             if st.button(
+            #                 "✅ Đánh giá kết quả",
+            #                 key=feedback_mode_key,
+            #                 type="secondary",
+            #                 use_container_width=True
+            #             ):
+            #                 # Bật feedback mode
+            #                 st.session_state.pending_feedback = {
+            #                     "message_idx": idx,
+            #                     "query": message.get("query", ""),
+            #                     "search_type": "product"
+            #                 }
+            #                 st.session_state.feedback_selections[idx] = []
+            #                 st.rerun()
+                
+            # HIển thị SẢN PHẨM (với feedback selection)
             if message.get("data", {}).get("products"):
                 products = message["data"]["products"]
+                can_feedback = message["data"].get("can_provide_feedback", False)
+                search_method = message["data"].get("search_method", "")
+                ranking_summary = message["data"].get("ranking_summary", {})  # 🆕
                 
                 st.markdown("---")
-                st.markdown(f"### 📦 Kết quả tìm kiếm sản phẩm ({len(products)} sản phẩm)")
                 
+                # Header với thông tin search method
+                col_h1, col_h2 = st.columns([3, 1])
+                
+                with col_h1:
+                    st.markdown(f"### 📦 Kết quả tìm kiếm sản phẩm ({len(products)} sản phẩm)")
+                    
+                    # 🆕 HIỂN THỊ RANKING INFO
+                    if ranking_summary.get('ranking_applied'):
+                        st.info(
+                            f"⭐ **Kết quả đã được xếp hạng lại** dựa trên {ranking_summary['boosted_items']} "
+                            f"sản phẩm có feedback (tối đa {ranking_summary['max_feedback_count']} lượt chọn)"
+                        )
+                        
+                        # Hiển thị top changes
+                        if ranking_summary.get('ranking_changes'):
+                            with st.expander("📊 Xem chi tiết thay đổi xếp hạng"):
+                                for change in ranking_summary['ranking_changes']:
+                                    boost_emoji = "⬆️" if change['boost'] > 0 else "⬇️"
+                                    st.caption(
+                                        f"{boost_emoji} **{change['name']}** "
+                                        f"({change['id']}): #{change['from_rank']} → #{change['to_rank']}"
+                                    )
+                    
+                    # Hiển thị explanation nếu có
+                    if message["data"].get("explanation"):
+                        st.info(f"ℹ️ {message['data']['explanation']}")
+                
+                with col_h2:
+                    # Nút bật/tắt chế độ feedback
+                    if can_feedback:  # 🆕 Luôn true giờ
+                        feedback_mode_key = f"feedback_mode_{idx}"
+                        
+                        if st.button(
+                            "✅ Đánh giá kết quả",
+                            key=feedback_mode_key,
+                            type="secondary",
+                            use_container_width=True
+                        ):
+                            st.session_state.pending_feedback = {
+                                "message_idx": idx,
+                                "query": message.get("query", ""),
+                                "search_type": "product"
+                            }
+                            st.session_state.feedback_selections[idx] = []
+                            st.rerun()                
+                
+                
+                
+                # Kiểm tra xem có đang ở feedback mode không
+                is_feedback_mode = (
+                    st.session_state.pending_feedback and 
+                    st.session_state.pending_feedback.get("message_idx") == idx
+                )
+                
+                if is_feedback_mode:
+                    st.warning("👆 **Chế độ đánh giá**: Tích chọn các sản phẩm PHÙ HỢP với câu hỏi của bạn")
+                
+                # Hiển thị products
                 cols = st.columns(3)
                 for pidx, product in enumerate(products[:9]):
                     with cols[pidx % 3]:
@@ -518,33 +653,232 @@ with chat_container:
                             material_primary = product.get('material_primary', 'N/A')
                             project = product.get('project', '')
                             
+                            # Hiển thị feedback boost info nếu có
+                            # feedback_info = ""
+                            # if product.get('feedback_count', 0) > 0:
+                            #     feedback_info = f"<p style='color: #10b981;'>⭐ {product['feedback_count']} người đã chọn</p>"
+                            
+
+# 🆕 Hiển thị feedback boost info + ranking badge
+                            feedback_info = ""
+                            if product.get('feedback_count', 0) > 0:
+                                # Tính thay đổi ranking
+                                rank_change = product.get('original_rank', 0) - product.get('final_rank', 0)
+                                
+                                # Ranking badge
+                                ranking_badge = ""
+                                if rank_change > 0:
+                                    ranking_badge = f" <span style='background: #10b981; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;'>⬆️ +{rank_change}</span>"
+                                elif rank_change < 0:
+                                    ranking_badge = f" <span style='background: #ef4444; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem;'>⬇️ {rank_change}</span>"
+                                
+                                feedback_info = f"<p style='color: #10b981;'>⭐ {product['feedback_count']} người đã chọn{ranking_badge}</p>"
+
+
+
+
                             st.markdown(f"""
                             <div class="product-card">
                                 <h4>{product_name}...</h4>
                                 <p>🏷️ <b>{headcode}</b></p>
                                 <p>📦 {category} - {sub_category}</p>
                                 <p>🪵 {material_primary}</p>
+                                {feedback_info}
                             """, unsafe_allow_html=True)
                             
+                            # Hiển thị matched materials nếu là cross-table search
+                            if product.get('matched_materials'):
+                                st.markdown("<p><b>🧱 Vật liệu khớp:</b></p>", unsafe_allow_html=True)
+                                for mat in product['matched_materials'][:3]:
+                                    st.markdown(f"<p style='font-size: 0.85rem;'>• {mat['name']}</p>", unsafe_allow_html=True)
+                            
                             if project:
-                                st.markdown(f"<p>🗝️ Dự án: {project}</p>", unsafe_allow_html=True)
+                                st.markdown(f"<p>🗂️ Dự án: {project}</p>", unsafe_allow_html=True)
                             
                             st.markdown("</div>", unsafe_allow_html=True)
                             
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("📋 Vật liệu", key=f"mat_{headcode}_{idx}_{pidx}", use_container_width=True):
-                                    process_user_input(f"Phân tích nguyên vật liệu sản phẩm {headcode}")
-                            with col2:
-                                if st.button("💰 Chi phí", key=f"price_{headcode}_{idx}_{pidx}", use_container_width=True):
-                                    process_user_input(f"Tính chi phí sản phẩm {headcode}")
+                            # FEEDBACK CHECKBOX (chỉ hiện khi feedback mode)
+                            if is_feedback_mode:
+                                is_selected = st.checkbox(
+                                    "✓ Sản phẩm này phù hợp",
+                                    key=f"select_prod_{headcode}_{idx}_{pidx}",
+                                    value=headcode in st.session_state.feedback_selections.get(idx, [])
+                                )
+                                
+                                # Cập nhật selection
+                                current_selections = st.session_state.feedback_selections.get(idx, [])
+                                
+                                if is_selected and headcode not in current_selections:
+                                    current_selections.append(headcode)
+                                elif not is_selected and headcode in current_selections:
+                                    current_selections.remove(headcode)
+                                
+                                st.session_state.feedback_selections[idx] = current_selections
+                            
+                            else:
+                                # Buttons bình thường (khi không feedback mode)
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("📋 Vật liệu", key=f"mat_{headcode}_{idx}_{pidx}", use_container_width=True):
+                                        process_user_input(f"Phân tích nguyên vật liệu sản phẩm {headcode}")
+                                with col2:
+                                    if st.button("💰 Chi phí", key=f"price_{headcode}_{idx}_{pidx}", use_container_width=True):
+                                        process_user_input(f"Tính chi phí sản phẩm {headcode}")
+                
+                # Nút Submit Feedback (hiện ở cuối nếu đang feedback mode)
+                if is_feedback_mode:
+                    st.markdown("---")
+                    
+                    col_fb1, col_fb2, col_fb3 = st.columns([2, 1, 1])
+                    
+                    with col_fb1:
+                        selected_count = len(st.session_state.feedback_selections.get(idx, []))
+                        st.info(f"📊 Đã chọn: **{selected_count} sản phẩm**")
+                    
+                    with col_fb2:
+                        if st.button("✅ Gửi đánh giá", type="primary", use_container_width=True):
+                            selections = st.session_state.feedback_selections.get(idx, [])
+                            
+                            if not selections:
+                                st.warning("Vui lòng chọn ít nhất 1 sản phẩm")
+                            else:
+                                # Lấy query gốc từ message history
+                                query = ""
+                                for m in st.session_state.messages:
+                                    if m.get("role") == "user":
+                                        query = m["content"]
+                                        break
+                                
+                                # Gửi feedback
+                                result = submit_user_feedback(query, selections, "product")
+                                
+                                if result.get("saved"):
+                                    st.success("✅ Cảm ơn phản hồi! Hệ thống đã ghi nhận.")
+                                    # Tắt feedback mode
+                                    st.session_state.pending_feedback = None
+                                    st.session_state.feedback_selections.pop(idx, None)
+                                    time.sleep(1)
+                                    st.rerun()
+                                else:
+                                    st.error("Không thể lưu feedback")
+                    
+                    with col_fb3:
+                        if st.button("❌ Hủy", use_container_width=True):
+                            st.session_state.pending_feedback = None
+                            st.session_state.feedback_selections.pop(idx, None)
+                            st.rerun()
+
+            
+
             
             # HIỂN THỊ VẬT LIỆU
+
+
+
+            # # HIỂN THỊ VẬT LIỆU (với feedback selection)
+            # if message.get("data", {}).get("materials"):
+            #     materials = message["data"]["materials"]
+            #     can_feedback = message["data"].get("can_provide_feedback", False)
+            #     search_method = message["data"].get("search_method", "")
+                
+            #     st.markdown("---")
+                
+            #     col_h1, col_h2 = st.columns([3, 1])
+                
+            #     with col_h1:
+            #         st.markdown(f"### 🧱 Kết quả tìm kiếm nguyên vật liệu ({len(materials)} vật liệu)")
+                    
+            #         if message["data"].get("explanation"):
+            #             st.info(f"ℹ️ {message['data']['explanation']}")
+                    
+            #         # Hiển thị matched products nếu có
+            #         if message["data"].get("matched_products"):
+            #             matched = message["data"]["matched_products"]
+            #             st.caption(f"🔗 Liên quan đến: {', '.join(matched[:3])}")
+                
+            #     with col_h2:
+            #         if can_feedback and search_method in ["cross_table", "cross_table_product_to_material"]:
+            #             feedback_mode_key = f"feedback_mode_mat_{idx}"
+                        
+            #             if st.button(
+            #                 "✅ Đánh giá kết quả",
+            #                 key=feedback_mode_key,
+            #                 type="secondary",
+            #                 use_container_width=True
+            #             ):
+            #                 st.session_state.pending_feedback = {
+            #                     "message_idx": idx,
+            #                     "query": message.get("query", ""),
+            #                     "search_type": "material"
+            #                 }
+            #                 st.session_state.feedback_selections[idx] = []
+            #                 st.rerun()
+                
+            # HIển thị VẬT LIỆU (với feedback selection)
             if message.get("data", {}).get("materials"):
                 materials = message["data"]["materials"]
+                can_feedback = message["data"].get("can_provide_feedback", False)
+                search_method = message["data"].get("search_method", "")
+                ranking_summary = message["data"].get("ranking_summary", {})  # 🆕
                 
                 st.markdown("---")
-                st.markdown(f"### 🧱 Kết quả tìm kiếm nguyên vật liệu ({len(materials)} vật liệu)")
+                
+                col_h1, col_h2 = st.columns([3, 1])
+                
+                with col_h1:
+                    st.markdown(f"### 🧱 Kết quả tìm kiếm nguyên vật liệu ({len(materials)} vật liệu)")
+                    
+                    # 🆕 HIỂN THỊ RANKING INFO
+                    if ranking_summary.get('ranking_applied'):
+                        st.info(
+                            f"⭐ **Kết quả đã được xếp hạng lại** dựa trên {ranking_summary['boosted_items']} "
+                            f"vật liệu có feedback"
+                        )
+                        
+                        if ranking_summary.get('ranking_changes'):
+                            with st.expander("📊 Xem thay đổi xếp hạng"):
+                                for change in ranking_summary['ranking_changes']:
+                                    boost_emoji = "⬆️" if change['boost'] > 0 else "⬇️"
+                                    st.caption(
+                                        f"{boost_emoji} **{change['name']}**: "
+                                        f"#{change['from_rank']} → #{change['to_rank']}"
+                                    )
+                    
+                    if message["data"].get("explanation"):
+                        st.info(f"ℹ️ {message['data']['explanation']}")
+                    
+                    # Matched products info
+                    if message["data"].get("matched_products"):
+                        matched = message["data"]["matched_products"]
+                        st.caption(f"🔗 Liên quan đến: {', '.join(matched[:3])}")
+                
+                with col_h2:
+                    if can_feedback:  # 🆕
+                        feedback_mode_key = f"feedback_mode_mat_{idx}"
+                        
+                        if st.button(
+                            "✅ Đánh giá kết quả",
+                            key=feedback_mode_key,
+                            type="secondary",
+                            use_container_width=True
+                        ):
+                            st.session_state.pending_feedback = {
+                                "message_idx": idx,
+                                "query": message.get("query", ""),
+                                "search_type": "material"
+                            }
+                            st.session_state.feedback_selections[idx] = []
+                            st.rerun()                
+                
+                
+                
+                is_feedback_mode = (
+                    st.session_state.pending_feedback and 
+                    st.session_state.pending_feedback.get("message_idx") == idx
+                )
+                
+                if is_feedback_mode:
+                    st.warning("👆 **Chế độ đánh giá**: Tích chọn các vật liệu PHÙ HỢP")
                 
                 cols = st.columns(3)
                 for midx, material in enumerate(materials[:9]):
@@ -569,12 +903,19 @@ with chat_container:
                                         🧱
                                     </div>
                                 """, unsafe_allow_html=True)
-                            
                             material_name = material.get('material_name', 'N/A')[:40]
                             id_sap = material.get('id_sap', 'N/A')
                             material_group = material.get('material_group', 'N/A')
                             price = material.get('price', 0)
                             unit = material.get('unit', '')
+                            
+                            feedback_info = ""
+                            if material.get('feedback_count', 0) > 0:
+                                feedback_info = f"<p style='color: #10b981;'>⭐ {material['feedback_count']} người đã chọn</p>"
+                            
+                            usage_info = ""
+                            if material.get('usage_count'):
+                                usage_info = f"<p>📊 Dùng trong {material['usage_count']} sản phẩm</p>"
                             
                             st.markdown(f"""
                             <div class="material-card">
@@ -585,15 +926,70 @@ with chat_container:
                             </div>
                             """, unsafe_allow_html=True)
                             
-                            col1, col2 = st.columns(2)
-                            with col1:
-                                if st.button("🔍 Chi tiết", key=f"detail_{id_sap}_{idx}_{midx}", use_container_width=True):
-                                    process_user_input(f"Chi tiết vật liệu {material_name}")
-                            with col2:
-                                if material.get('image_url'):
-                                    st.link_button("🔗 Drive", material['image_url'], use_container_width=True)
-                                else:
-                                    st.caption("_Chưa có ảnh_")
+                            # FEEDBACK CHECKBOX
+                            if is_feedback_mode:
+                                is_selected = st.checkbox(
+                                    "✓ Vật liệu này phù hợp",
+                                    key=f"select_mat_{id_sap}_{idx}_{midx}",
+                                    value=id_sap in st.session_state.feedback_selections.get(idx, [])
+                                )
+                                
+                                current_selections = st.session_state.feedback_selections.get(idx, [])
+                                
+                                if is_selected and id_sap not in current_selections:
+                                    current_selections.append(id_sap)
+                                elif not is_selected and id_sap in current_selections:
+                                    current_selections.remove(id_sap)
+                                
+                                st.session_state.feedback_selections[idx] = current_selections
+                            
+                            else:
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    if st.button("🔍 Chi tiết", key=f"detail_{id_sap}_{idx}_{midx}", use_container_width=True):
+                                        process_user_input(f"Chi tiết vật liệu {material_name}")
+                                with col2:
+                                    if material.get('image_url'):
+                                        st.link_button("🔗 Drive", material['image_url'], use_container_width=True)
+                
+                # Submit feedback button
+                if is_feedback_mode:
+                    st.markdown("---")
+                    
+                    col_fb1, col_fb2, col_fb3 = st.columns([2, 1, 1])
+                    
+                    with col_fb1:
+                        selected_count = len(st.session_state.feedback_selections.get(idx, []))
+                        st.info(f"📊 Đã chọn: **{selected_count} vật liệu**")
+                    
+                    with col_fb2:
+                        if st.button("✅ Gửi đánh giá", key=f"submit_fb_mat_{idx}", type="primary", use_container_width=True):
+                            selections = st.session_state.feedback_selections.get(idx, [])
+                            
+                            if not selections:
+                                st.warning("Vui lòng chọn ít nhất 1 vật liệu")
+                            else:
+                                query = ""
+                                for m in st.session_state.messages:
+                                    if m.get("role") == "user":
+                                        query = m["content"]
+                                        break
+                                
+                                result = submit_user_feedback(query, selections, "material")
+                                
+                                if result.get("saved"):
+                                    st.success("✅ Cảm ơn phản hồi!")
+                                    st.session_state.pending_feedback = None
+                                    st.session_state.feedback_selections.pop(idx, None)
+                                    time.sleep(1)
+                                    st.rerun()
+                    
+                    with col_fb3:
+                        if st.button("❌ Hủy", key=f"cancel_fb_mat_{idx}", use_container_width=True):
+                            st.session_state.pending_feedback = None
+                            st.session_state.feedback_selections.pop(idx, None)
+                            st.rerun()
+
             
             # HIỂN THỊ CHI TIẾT VẬT LIỆU + ẢNH LỚN
             if message.get("data", {}).get("material_detail"):
@@ -694,7 +1090,7 @@ with col1:
     )
 
 with col2:
-    send_btn = st.button("Gửi", use_container_width=True, type="primary")
+    send_btn = st.button("📤 Gửi", use_container_width=True, type="primary")
 
 # Image upload
 st.divider()
@@ -720,9 +1116,12 @@ if uploaded_image:
                     uploaded_image.seek(0)
                     
                     files = {"file": uploaded_image}
+                    data = {"session_id": st.session_state.session_id}
+                    
                     response = requests.post(
                         f"{API_URL}/search-image", 
                         files=files,
+                        data=data,
                         timeout=30
                     )
                     

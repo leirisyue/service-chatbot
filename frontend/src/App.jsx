@@ -7,6 +7,7 @@ import SuggestedPrompts from './components/Input/SuggestedPrompts';
 import ImageUpload from './components/Input/ImageUpload';
 import MainLayout from './components/Layout/MainLayout';
 import { sendMessage, searchByImage, queryChat } from './services/api';
+import Chip from '@mui/material/Chip';
 import './App.css';
 
 function App() {
@@ -222,8 +223,9 @@ Hãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của b
         <div className="chat-interface">
           <div className="header">
             <h1 className="main-title">
-              🏢 AA Corporation AI Assistant
-              <span className="version-badge">V4.0</span>
+              AA Corporation AI Assistant
+              {/* <span className="version-badge">V4.0</span> */}
+              <Chip label="v1.0" />
             </h1>
             <p className="sub-title">
               Trợ Lý AI Thông Minh - Hỗ trợ Báo giá vật tư
