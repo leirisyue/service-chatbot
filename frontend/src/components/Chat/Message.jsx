@@ -4,6 +4,9 @@ import MaterialCard from './MaterialCard';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import { formatTimestamp } from '../../utils/helpers';
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+
 
 function Message({ message, onSendMessage }) {
   const isUser = message.role === 'user';
@@ -31,12 +34,7 @@ function Message({ message, onSendMessage }) {
 
   const renderContent = () => {
     if (typeof message.content === 'string') {
-      return message.content.split('\n').map((line, i) => (
-        <React.Fragment key={i}>
-          {line}
-          {i < message.content.split('\n').length - 1 && <br />}
-        </React.Fragment>
-      ));
+      return <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>;
     }
     return message.content;
   };
