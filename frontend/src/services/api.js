@@ -23,8 +23,8 @@ export const sendMessage = async (sessionId, message, context) => {
   return response.data;
 };
 
-export const queryChat = async (min_score, text, top_k)=>{
-    const response = await api_Chatbot.post('/api/query', {
+export const queryChat = async (min_score, text, top_k) => {
+  const response = await api_Chatbot.post('/api/query', {
     min_score,
     text,
     top_k
@@ -35,7 +35,7 @@ export const queryChat = async (min_score, text, top_k)=>{
 export const searchByImage = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await api.post('/search-image', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -48,7 +48,7 @@ export const searchByImage = async (file) => {
 export const importProducts = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await api.post('/import/products', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -60,7 +60,7 @@ export const importProducts = async (file) => {
 export const importMaterials = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await api.post('/import/materials', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -72,7 +72,7 @@ export const importMaterials = async (file) => {
 export const importProductMaterials = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
-  
+
   const response = await api.post('/import/product-materials', formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
@@ -110,7 +110,7 @@ export const getDebugInfo = async () => {
       api.get('/debug/products'),
       api.get('/debug/materials')
     ]);
-    
+
     return {
       products: products.data,
       materials: materials.data
@@ -119,4 +119,10 @@ export const getDebugInfo = async () => {
     console.error('Error fetching debug info:', error);
     throw error;
   }
+};
+
+export const createMedia = async (imageUrl) => {
+  console.log('createMedia', imageUrl);
+  const response = await api.post("/media", imageUrl);
+  return response.data;
 };

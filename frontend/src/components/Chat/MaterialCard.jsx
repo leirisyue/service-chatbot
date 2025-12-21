@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
-import ImageWithFallback from './Image';
+import MediaImage from './MediaImage';
 
 function MaterialCard({ material, onDetailClick }) {
-  console.log("🚀 ~ MaterialCard ~ material:", material);
   // State to track if the main image fails to load
   const [imgError, setImgError] = useState(false);
 
@@ -35,10 +34,9 @@ function MaterialCard({ material, onDetailClick }) {
             🧱
           </div>
         )} */}
-
-        <ImageWithFallback
+        <MediaImage
           imageUrl={material.image_url}
-          caption={material.material_name}
+          alt={material.material_name}
         />
       </div>
 
