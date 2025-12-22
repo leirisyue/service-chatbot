@@ -28,15 +28,11 @@ export default function MediaImage({ imageUrl, alt }) {
         if (!cancelled) setLoading(false);
       }
     }
-
     load();
-
     return () => {
       cancelled = true;
     };
   }, [imageUrl]);
-
-  // ================= UI STATES =================
 
   if (loading) {
     return <div className="image-loading">Loading image...</div>;

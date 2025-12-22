@@ -49,12 +49,12 @@ function Message({ message, onSendMessage }) {
 
     return (
       <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkBreaks]}
-      rehypePlugins={[
-        rehypeRaw,
-        [rehypeSanitize, schemaMarkdown],
-      ]}
-    >
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, schemaMarkdown],
+        ]}
+      >
         {message.content}
       </ReactMarkdown>
     );
@@ -67,7 +67,7 @@ function Message({ message, onSendMessage }) {
       </div>
       <div className="message-content">
         <div className="message-text">
-          <div style={{paddingBottom:'15px'}}>{formatTimestamp(message?.timestamp)}</div>
+          <div style={{ paddingBottom: '15px' }}>{formatTimestamp(message?.timestamp)}</div>
           {renderContent()}
         </div>
 
@@ -76,7 +76,6 @@ function Message({ message, onSendMessage }) {
           <div className="products-section">
             <h3>📦 Kết quả tìm kiếm sản phẩm ({message?.data?.products?.length} sản phẩm)</h3>
             <Grid container spacing={2}>
-              {/* <div className="products-grid"> */}
               {message.data.products.slice(0, 9).map((product, index) => (
                 <Grid size={{ xs: 12, md: 6 }}>
                   <Box sx={{ height: '100%' }}>
@@ -89,7 +88,6 @@ function Message({ message, onSendMessage }) {
                   </Box>
                 </Grid>
               ))}
-              {/* </div> */}
             </Grid>
           </div>
         )}
@@ -97,9 +95,18 @@ function Message({ message, onSendMessage }) {
         {/* Hiển thị vật liệu */}
         {!isUser && message.data?.materials && (
           <div className="materials-section">
-            <div style={{paddingBottom:'15px', fontWeight:'600'}}>🧱 Kết quả tìm kiếm nguyên vật liệu ({message.data.materials.length} vật liệu)</div>
+            { message.data.materials.length > 0 &&
+              <div style={{ paddingBottom: '15px', fontWeight: '600' }}>
+                🧱 Kết quả tìm kiếm nguyên vật liệu ({message.data.materials.length} vật liệu)
+              </div>
+            }
+            { message.data.materials.length === 0 &&
+              <div style={{ paddingBottom: '15px', fontStyle: 'italic' }}>
+                Không tìm thấy nguyên vật liệu phù hợp.
+              </div>
+            }
             <Grid container spacing={2}>
-              {message.data.materials.slice(0, 9).map((material, index) => (
+              { message.data.materials.slice(0, 9).map((material, index) => (
                 <Grid size={{ xs: 12, md: 6, lg: 4 }}>
                   <Box sx={{ height: '100%' }}>
                     <MaterialCard
