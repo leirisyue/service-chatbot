@@ -2,13 +2,11 @@ from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List, Dict
-import psycopg2
 from psycopg2.extras import RealDictCursor
 import google.generativeai as genai
 import uuid
 import time
 import json
-from datetime import datetime
 from PIL import Image
 import os
 import re
@@ -21,13 +19,6 @@ from config import settings
 # CONFIGURATION
 # ========================================
 
-DB_CONFIG = {
-    "dbname": "db_vector",
-    "user": "postgres",
-    "password": "postgres",
-    "host": "localhost",
-    "port": "5432"
-}
 
 genai.configure(api_key=settings.My_GOOGLE_API_KEY)
 
@@ -41,19 +32,13 @@ app.add_middleware(
 )
 
 # ========================================
-# DATABASE HELPERS
-# ========================================
-
-def get_db():
-    return psycopg2.connect(**DB_CONFIG)
-
-# ========================================
 # PYDANTIC MODELS
 # ========================================
 
 class ChatMessage(BaseModel):
     session_id: str
     message: str
+    email: Optional[str] = None  # Make email optional for backward compatibility
     context: Optional[Dict] = {}
 
 # ========================================
@@ -378,7 +363,7 @@ def save_chat_history(session_id: str, user_message: str, bot_response: str,
             query_embedding = generate_embedding(user_message)
         
         sql = """
-            INSERT INTO chat_history 
+            INSERT INTO chat_histories 
             (session_id, user_message, bot_response, intent, params, result_count,
             search_type, expanded_query, extracted_keywords, query_embedding)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -1181,7 +1166,6 @@ def get_adaptive_threshold(query: str) -> float:
 def get_ranking_summary(items: list) -> dict:
     """
     📊 Tạo summary về ranking để hiển thị trong UI
-    
     Returns:
         {
             "total_items": 10,
@@ -1628,7 +1612,7 @@ def search_materials(params: Dict):
                 ORDER BY distance ASC
                 LIMIT 10
             """
-            
+
             cur.execute(sql, [query_vector] + filter_params)
             results = cur.fetchall()
             
@@ -1906,6 +1890,7 @@ def chat(msg: ChatMessage):
         context = msg.context or {}
         
         intent_data = get_intent_and_params(user_message, context)
+        # print(f"\n🤖 Detected intent: {intent_data}")
         
         if intent_data.get("intent") == "error":
             return {"response": "Xin lỗi, hệ thống đang bận. Vui lòng thử lại."}
@@ -1920,12 +1905,12 @@ def chat(msg: ChatMessage):
         if intent == "greeting":
             result_response = {
                 "response": "👋 Xin chào! Tôi là trợ lý AI của AA Corporation.\n\n"
-                           "Tôi có thể giúp bạn:\n"
+                        "Tôi có thể giúp bạn:\n"
                            "• 🔍 **Tìm sản phẩm** (bàn, ghế, sofa...)\n"
                            "• 🧱 **Tìm nguyên vật liệu** (gỗ, da, đá, vải...)\n"
                            "• 💰 **Tính chi phí** sản phẩm\n"
                            "• 📋 **Xem định mức** nguyên vật liệu\n\n"
-                           "Bạn cần tìm gì hôm nay?",
+                        "Bạn cần tìm gì hôm nay?",
                 "suggested_prompts": [
                     "🔍 Tìm sản phẩm", 
                     "🧱 Tìm nguyên vật liệu", 
@@ -1934,45 +1919,9 @@ def chat(msg: ChatMessage):
                 ]
             }
         
-        # PRODUCT FLOW
-        # elif intent == "search_product":
-        #     search_result = search_products(params)
-        #     products = search_result.get("products", [])
-        #     result_count = len(products)
-            
-        #     if not products:
-        #         result_response = {"response": search_result.get("response", "Không tìm thấy sản phẩm.")}
-        #     else:
-        #         response_text = ""
-        #         suggested_prompts = []
-                
-        #         if intent_data.get("is_broad_query"):
-        #             follow_up = intent_data.get("follow_up_question", "Bạn muốn tìm loại cụ thể nào?")
-        #             response_text = (
-        #                 f"🔎 Tìm thấy **{len(products)} sản phẩm** phù hợp với từ khóa chung.\n"
-        #                 f"*(Tôi đã chọn lọc các mẫu phổ biến nhất bên dưới)*\n\n"
-        #                 f"💡 **Gợi ý:** {follow_up}"
-        #             )
-        #             actions = intent_data.get("suggested_actions", [])
-        #             suggested_prompts = [f"🔍 {a}" for a in actions] if actions else []
-        #         else:
-        #             response_text = f"✅ Đã tìm thấy **{len(products)} sản phẩm** đúng yêu cầu của bạn."
-        #             suggested_prompts = [
-        #                 f"💰 Tính chi phí {products[0]['headcode']}",
-        #                 f"📋 Xem vật liệu {products[0]['headcode']}"
-        #             ]
-                
-        #         result_response = {
-        #             "response": response_text,
-        #             "products": products,
-        #             "suggested_prompts": suggested_prompts
-        #         }
-        #         # CROSS-TABLE: Tìm sản phẩm theo vật liệu
-        
-        # PRODUCT FLOW - CẬP NHẬT V4.8 (Feedback Ranking)
-
         elif intent == "search_product":
             search_result = search_products(params)
+            # print(f"🔍 Search result: {search_result}")
             products = search_result.get("products", [])
             
             # ✅ THÊM: Áp dụng feedback ranking
@@ -2014,7 +1963,6 @@ def chat(msg: ChatMessage):
                         f"💰 Tính chi phí {products[0]['headcode']}",
                         f"📋 Xem vật liệu {products[0]['headcode']}"
                     ]
-                
                 result_response = {
                     "response": response_text,
                     "products": products,
@@ -2022,8 +1970,7 @@ def chat(msg: ChatMessage):
                     "ranking_summary": ranking_summary,  # ✅ THÊM
                     "can_provide_feedback": True  # ✅ THÊM
                 }
-        
-        
+                
         elif intent == "search_product_by_material":
             material_query = params.get("material_name") or params.get("material_primary") or params.get("keywords_vector")
             
@@ -2050,8 +1997,8 @@ def chat(msg: ChatMessage):
                     matched_mats = search_result.get("matched_materials", [])
                     result_response = {
                         "response": f"🔍 Đã tìm thấy vật liệu: **{', '.join(matched_mats)}**\n\n"
-                                   f"Nhưng không có sản phẩm nào sử dụng vật liệu này trong hệ thống.\n\n"
-                                   f"💡 Thử tìm kiếm khác hoặc mở rộng điều kiện.",
+                                f"Nhưng không có sản phẩm nào sử dụng vật liệu này trong hệ thống.\n\n"
+                                f"💡 Thử tìm kiếm khác hoặc mở rộng điều kiện.",
                         "materials": []
                     }
                 else:
@@ -2065,63 +2012,6 @@ def chat(msg: ChatMessage):
                         "search_method": "cross_table",
                         "can_provide_feedback": True
                     }
-
-        
-
-
-
-        # CROSS-TABLE: Tìm vật liệu cho sản phẩm
-        # elif intent == "search_material_for_product":
-        #     product_query = params.get("category") or params.get("usage_context") or params.get("keywords_vector")
-            
-        #     if not product_query:
-        #         result_response = {
-        #             "response": "⚠️ Bạn muốn tìm vật liệu để làm sản phẩm gì?",
-        #             "suggested_prompts": [
-        #                 "🧱 Vật liệu làm bàn ăn",
-        #                 "🧱 Nguyên liệu ghế sofa",
-        #                 "🧱 Đá làm bàn coffee"
-        #             ]
-        #         }
-        #     else:
-        #         search_result = search_materials_for_product(product_query, params)
-        #         materials = search_result.get("materials", [])
-                
-        #         feedback_scores = get_feedback_boost_for_query(user_message, "material")
-        #         if feedback_scores:
-        #             materials = rerank_with_feedback(materials, feedback_scores, "id_sap")
-                
-        #         result_count = len(materials)
-                
-        #         if not materials:
-        #             result_response = {
-        #                 "response": "Không tìm thấy vật liệu phù hợp.",
-        #                 "materials": []
-        #             }
-        #         else:
-        #             explanation = search_result.get("explanation", "")
-                    
-        #             response_text = f"✅ {explanation}\n\n"
-        #             response_text += f"🧱 Tìm thấy **{len(materials)} vật liệu** thường dùng:\n\n"
-                    
-        #             for idx, mat in enumerate(materials[:5], 1):
-        #                 response_text += f"{idx}. **{mat['material_name']}**\n"
-        #                 response_text += f"   • Nhóm: {mat['material_group']}\n"
-        #                 response_text += f"   • Giá: {mat.get('price', 0):,.0f} VNĐ/{mat.get('unit', '')}\n"
-        #                 response_text += f"   • Dùng trong {mat.get('usage_count', 0)} sản phẩm\n\n"
-                    
-        #             result_response = {
-        #                 "response": response_text,
-        #                 "materials": materials,
-        #                 "search_method": "cross_table",
-        #                 "can_provide_feedback": True
-        #             }
-
-
-
-        
-
-
 
         elif intent == "query_product_materials":
             headcode = params.get("headcode")
@@ -2152,57 +2042,6 @@ def chat(msg: ChatMessage):
             else:
                 result_response = calculate_product_cost(headcode)
         
-        # MATERIAL FLOW
-        # elif intent == "search_material":
-        #     search_result = search_materials(params)
-        #     materials = search_result.get("materials", [])
-        #     result_count = len(materials)
-            
-        #     if not materials:
-        #         result_response = {
-        #             "response": search_result.get("response", "Không tìm thấy vật liệu phù hợp."),
-        #             "materials": []
-        #         }
-        #     else:
-        #         response_text = ""
-                
-        #         if intent_data.get("is_broad_query"):
-        #             follow_up = intent_data.get("follow_up_question", "Bạn cần tìm loại vật liệu cụ thể nào?")
-        #             response_text = (
-        #                 f"🔎 Tìm thấy **{len(materials)} nguyên vật liệu** phù hợp.\n\n"
-        #                 f"💡 **Gợi ý:** {follow_up}"
-        #             )
-        #         else:
-        #             response_text = f"✅ Đã tìm thấy **{len(materials)} nguyên vật liệu** đúng yêu cầu."
-                
-        #         response_text += "\n\n📦 **KẾT QUẢ:**\n"
-        #         for idx, mat in enumerate(materials[:8], 1):
-        #             response_text += f"\n{idx}. **{mat['material_name']}**"
-        #             response_text += f"\n   • Mã: `{mat['id_sap']}`"
-        #             response_text += f"\n   • Nhóm: {mat['material_group']}"
-        #             response_text += f"\n   • Giá: {mat.get('price', 0):,.2f} VNĐ/{mat.get('unit', '')}"
-        #             if mat.get('image_url'):
-        #                 response_text += f"\n   • [📷 Xem ảnh]({mat['image_url']})"
-                
-        #         if len(materials) > 8:
-        #             response_text += f"\n\n*...và {len(materials)-8} vật liệu khác*"
-                
-        #         suggested_prompts = []
-        #         if materials:
-        #             first_mat = materials[0]
-        #             suggested_prompts = [
-        #                 f"🔍 Chi tiết {first_mat['material_name']}",
-        #                 "📋 Xem nhóm vật liệu khác"
-        #             ]
-                
-        #         result_response = {
-        #             "response": response_text,
-        #             "materials": materials,
-        #             "suggested_prompts": suggested_prompts
-        #         }
-        
-      
-# MATERIAL FLOW - CẬP NHẬT V4.8 (Feedback Ranking)
         elif intent == "search_material":
             search_result = search_materials(params)
             materials = search_result.get("materials", [])
@@ -2273,8 +2112,7 @@ def chat(msg: ChatMessage):
                     "ranking_summary": ranking_summary,  # 🆕
                     "can_provide_feedback": True  # 🆕
                 }      
-      
-      
+                
         elif intent == "query_material_detail":
             id_sap = params.get("id_sap")
             material_name = params.get("material_name")
@@ -2299,11 +2137,11 @@ def chat(msg: ChatMessage):
         else:
             result_response = {
                 "response": "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về sản phẩm hoặc vật liệu nhé!\n\n"
-                           "**Ví dụ:**\n"
-                           "• \"Tìm bàn ăn tròn\"\n"
-                           "• \"Tìm gỗ sồi\"\n"
-                           "• \"Tính chi phí sản phẩm B001\"\n"
-                           "• \"Xem vật liệu của ghế G002\"",
+                        "**Ví dụ:**\n"
+                        "• \"Tìm bàn ăn tròn\"\n"
+                        "• \"Tìm gỗ sồi\"\n"
+                        "• \"Tính chi phí sản phẩm B001\"\n"
+                        "• \"Xem vật liệu của ghế G002\"",
                 "suggested_prompts": [
                     "🔍 Tìm sản phẩm",
                     "🧱 Tìm vật liệu",
@@ -2321,16 +2159,25 @@ def chat(msg: ChatMessage):
             if params.get("keywords_vector"):
                 keywords = extract_product_keywords(params["keywords_vector"])
         
-        save_chat_history(
-            msg.session_id,
-            user_message,
-            result_response.get("response", ""),
-            intent,
-            params,
-            result_count,
-            search_type="text",
-            expanded_query=expanded,
-            extracted_keywords=keywords
+        # # Save to old chat_history table (keep for backward compatibility)
+        # save_chat_history(
+        #     msg.session_id,
+        #     user_message,
+        #     result_response.get("response", ""),
+        #     intent,
+        #     params,
+        #     result_count,
+        #     search_type="text",
+        #     expanded_query=expanded,
+        #     extracted_keywords=keywords
+        # )
+        
+        save_chat_to_history(
+            # email=msg.email,
+            email= "test@gmail.com",
+            session_id=msg.session_id,
+            question=intent_data,
+            answer=result_response.get("response", "")
         )
         
         return result_response
@@ -2340,7 +2187,6 @@ def chat(msg: ChatMessage):
         import traceback
         traceback.print_exc()
         return {"response": f"⚠️ Lỗi hệ thống: {str(e)}"}
-
 
 # ========================================
 # NEW ENDPOINT: USER FEEDBACK
@@ -2383,8 +2229,6 @@ def submit_feedback(feedback: FeedbackRequest):
             "message": f"❌ Lỗi: {str(e)}",
             "saved": False
         }
-
-
 
 
 # ========================================
@@ -3414,14 +3258,15 @@ def debug_chat_history():
 def root():
     return {
         "app": "AA Corporation Chatbot API", 
-        "version": "4.1",
+        "version": "4.2",
         "status": "Running",
         "features": [
             "✅ Queue-based batch classification",
             "✅ Import trước, classify sau",
             "✅ Batch size 8-10 items/call",
             "✅ Tiết kiệm quota Gemini",
-            "✅ NULL safety 100%"
+            "✅ NULL safety 100%",
+            "✅ Chat history with time blocks (0-12h, 12-24h)"
         ],
         "endpoints": {
             "chat": "POST /chat",
@@ -3433,45 +3278,11 @@ def root():
             "classify_materials": "POST /classify-materials 🆕",
             "generate_embeddings": "POST /generate-embeddings",
             "generate_material_embeddings": "POST /generate-material-embeddings",
+            "chat_histories": "GET /chat_histories/{email}/{session_id} 🆕",
+            "user_sessions": "GET /chat_histories/{email} 🆕",
             "debug": "GET /debug/products, /debug/materials, /debug/chat-history"
         }
     }
-
-@app.get("/history/{session_id}")
-def get_session_history(session_id: str):
-    """Xem lịch sử của 1 user - V4.6"""
-    try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        sql = """
-            SELECT 
-                user_message,
-                intent,
-                search_type,
-                expanded_query,
-                extracted_keywords,
-                result_count,
-                created_at
-            FROM chat_history
-            WHERE session_id = %s
-            ORDER BY created_at DESC
-            LIMIT 20
-        """
-        
-        cur.execute(sql, (session_id,))
-        history = cur.fetchall()
-        conn.close()
-        
-        return {
-            "session_id": session_id,
-            "total_queries": len(history),
-            "history": [dict(h) for h in history]
-        }
-    except Exception as e:
-        return {"error": str(e)}
-
-
 
 # ========================================
 # [4] VIEW IMAGE INTERNAL UTILS
@@ -3480,6 +3291,13 @@ def get_session_history(session_id: str):
 # mount media giống Streamlit
 from imageapi.media import router as media_router
 app.include_router(media_router)
+# ========================================
+# [4] VIEW IMAGE INTERNAL UTILS
+# public hình ảnh cho REACT
+# ========================================
+# mount media giống Streamlit
+from historiesapi.histories import router as history_router
+app.include_router(history_router)
 
 if __name__ == "__main__":
     import uvicorn

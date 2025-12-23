@@ -4,7 +4,7 @@ import './Input.css';
 function SuggestedPrompts({ prompts, onSelect }) {
   return (
     <div className="suggested-prompts">
-      <h4>💡 Gợi ý nhanh:</h4>
+      <div style={{paddingBottom:'5px'}}>💡 Gợi ý nhanh:</div>
       <div className="prompts-grid">
         {prompts.slice(0, 4).map((prompt, index) => (
           <button

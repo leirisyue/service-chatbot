@@ -1,7 +1,8 @@
 import React, { useRef } from 'react';
 import IconButton from '@mui/material/IconButton';
-import LoupeIcon from '@mui/icons-material/Loupe';
+import ImageIcon from '@mui/icons-material/Image';
 import './Input.css';
+import ImageSearchIcon from '@mui/icons-material/ImageSearch';
 
 function ImageUpload({ onImageUpload, disabled }) {
   const fileInputRef = useRef(null);
@@ -31,14 +32,15 @@ function ImageUpload({ onImageUpload, disabled }) {
         style={{ display: 'none' }}
         disabled={disabled}
       />
-      <IconButton 
-        aria-label="upload image" 
-        size="large" 
+      <IconButton
+        aria-label="upload image"
+        size="large"
         onClick={handleButtonClick}
         disabled={disabled}
         title="📷 Upload ảnh để tìm sản phẩm tương tự"
+        color="primary"
       >
-        <LoupeIcon />
+        <ImageSearchIcon />
       </IconButton>
     </>
   );
