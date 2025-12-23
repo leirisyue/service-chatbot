@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import Chip from '@mui/material/Chip';
+import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import Sidebar from './components/Sidebar/Sidebar';
+import './App.css';
 import ChatContainer from './components/Chat/ChatContainer';
 import ChatInput from './components/Input/ChatInput';
 import SuggestedPrompts from './components/Input/SuggestedPrompts';
-import ImageUpload from './components/Input/ImageUpload';
 import MainLayout from './components/Layout/MainLayout';
-import { sendMessage, searchByImage, queryChat } from './services/api';
-import Chip from '@mui/material/Chip';
-import './App.css';
+import Sidebar from './components/Sidebar/Sidebar';
+import { searchByImage, sendMessage } from './services/api';
 
 function App() {
   const [sessionId, setSessionId] = useState('');
@@ -39,6 +38,7 @@ function App() {
         role: 'bot',
         content: `👋 Xin chào! Tôi là trợ lý AI của <b>AA Corporation</b> (Phiên bản 4.0).\nTôi có thể giúp bạn: \n• 🔍 <b>Tìm kiếm sản phẩm</b> (bằng mô tả hoặc hình ảnh) \n• 🧱 <b>Tìm kiếm nguyên vật liệu</b> (gỗ, da, đá, vải...) \n• 📋 <b>Xem định mức vật liệu</b> của sản phẩm \n• 💰 <b>Tính chi phí</b> sản phẩm (NVL + Nhân công + Lợi nhuận) \n• 🔗 <b>Tra cứu</b> vật liệu được dùng ở sản phẩm/dự án nào \n• 📈 <b>Xem lịch sử giá</b> vật liệu. <b> \n• 🆕 Tính năng mới V4.0:</b> \n• 🤖 AI tự động phân loại sản phẩm/vật liệu \n• 📊 Lưu lịch sử truy vấn để học \nHãy chọn một trong các gợi ý bên dưới hoặc gõ câu hỏi của bạn!
         `,
+        type: 'welcome',
         timestamp: Date.now()
       };
       setMessages([welcomeMessage]);
@@ -112,13 +112,17 @@ function App() {
   const handleImageSearch = async (file) => {
     setIsLoading(true);
 
+    // Tạo preview URL từ file
+    const imageUrl = URL.createObjectURL(file);
+
     try {
       const response = await searchByImage(file);
 
-      // Thêm user message
+      // Thêm user message với ảnh
       const userMessage = {
         role: 'user',
-        content: "📷 [Đã upload ảnh]",
+        content: "📷 Tìm kiếm bằng hình ảnh",
+        imageUrl: imageUrl,
         timestamp: Date.now()
       };
       setMessages(prev => [...prev, userMessage]);
@@ -163,6 +167,17 @@ function App() {
       setIsLoading(false);
     }
   };
+
+  // Cleanup URLs khi component unmount
+  useEffect(() => {
+    return () => {
+      messages.forEach(msg => {
+        if (msg.imageUrl) {
+          URL.revokeObjectURL(msg.imageUrl);
+        }
+      });
+    };
+  }, [messages]);
 
   const handleResetChat = () => {
     setMessages([]);

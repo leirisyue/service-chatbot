@@ -1,16 +1,48 @@
 import React, { useState } from 'react';
 import './Input.css';
 import ImageUpload from './ImageUpload';
+import SendIcon from '@mui/icons-material/Send';
+import Button from '@mui/material/Button';
 
 function ChatInput({ onSendMessage, onImageUpload, disabled }) {
   const [inputValue, setInputValue] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Nếu có ảnh, gửi ảnh về backend
+    if (selectedImage && !disabled) {
+      onImageUpload(selectedImage);
+      setSelectedImage(null);
+      setImagePreview(null);
+      setInputValue('');
+      return;
+    }
+    
+    // Nếu chỉ có text, gửi text
     if (inputValue.trim() && !disabled) {
       onSendMessage(inputValue);
       setInputValue('');
     }
+  };
+
+  const handleImageSelect = (file) => {
+    if (file) {
+      setSelectedImage(file);
+      // Tạo preview URL
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
   };
 
   const handleKeyPress = (e) => {
@@ -21,25 +53,47 @@ function ChatInput({ onSendMessage, onImageUpload, disabled }) {
   };
 
   return (
-    <form className="chat-input-form" onSubmit={handleSubmit}>
-      <ImageUpload onImageUpload={onImageUpload} disabled={disabled} />
-      <input
-        type="text"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyPress={handleKeyPress}
-        placeholder="Nhập câu hỏi của bạn... (VD: Tìm bàn tròn gỗ sồi, hoặc Tìm gỗ làm bàn...)"
-        disabled={disabled}
-        className="chat-input"
-      />
-      <button
-        type="submit"
-        disabled={!inputValue.trim() || disabled}
-        className="send-button"
-      >
-        📤 Gửi
-      </button>
-    </form>
+    <div style={{width: '100%'}}>
+      {/* Hiển thị preview ảnh nếu có */}
+      {imagePreview && (
+        <div className="image-preview-container">
+          <div className="image-preview-wrapper">
+            <img src={imagePreview} alt="Preview" className="image-preview" />
+            <button 
+              type="button"
+              onClick={handleRemoveImage} 
+              className="remove-image-button"
+              title="Xóa ảnh"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="image-preview-hint">📷 Nhấn "Gửi" để tìm kiếm sản phẩm tương tự</div>
+        </div>
+      )}
+      
+      <form className="chat-input-form" onSubmit={handleSubmit}>
+        <ImageUpload onImageUpload={handleImageSelect} disabled={disabled} />
+        <input
+          type="text"
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyPress={handleKeyPress}
+          placeholder="Nhập câu hỏi của bạn... (VD: Tìm bàn tròn gỗ sồi, hoặc Tìm gỗ làm bàn...)"
+          disabled={disabled || selectedImage}
+          className="chat-input"
+        />
+        <Button
+          type="submit"
+          disabled={(!inputValue.trim() && !selectedImage) || disabled}
+          className="send-button"
+          endIcon={<SendIcon />}
+          variant="contained"
+          color="primary"
+        > Gửi
+        </Button>
+      </form>
+    </div>
   );
 }
 

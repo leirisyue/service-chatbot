@@ -12,9 +12,20 @@ import os
 import re
 import pandas as pd
 import io
+import psycopg2
 
 from config import settings
 
+DB_CONFIG = {
+    "dbname": "db_vector",
+    "user": "postgres",
+    "password": "postgres",
+    "host": "localhost",
+    "port": "5432"
+}
+
+def get_db():
+    return psycopg2.connect(**DB_CONFIG)
 # ========================================
 # CONFIGURATION
 # ========================================
@@ -2241,12 +2252,16 @@ async def search_by_image(
     session_id: str = Form(default=str(uuid.uuid4()))
 ):
     """Tìm kiếm theo ảnh"""
-    file_path = f"temp_{uuid.uuid4()}.jpg"
+    file_path = f"./media/temp_{uuid.uuid4()}.jpg"
     try:
-        with open(file_path, "wb") as buffer:
-            import shutil
-            shutil.copyfileobj(file.file, buffer)
+        # Read file content
+        contents = await file.read()
         
+        # Save to temporary file
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+        
+        # Open image using PIL
         img = Image.open(file_path)
         model = genai.GenerativeModel("gemini-2.5-flash-lite")
         

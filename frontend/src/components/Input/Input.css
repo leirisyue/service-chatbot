@@ -2,6 +2,7 @@
   display: flex;
   gap: 10px;
   flex: 1;
+  height: 38px;
 }
 
 .chat-input {
@@ -29,7 +30,7 @@
   background: var(--primary-gradient);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 8px !important;
   font-weight: 500;
   cursor: pointer;
   transition: transform 0.2s;
@@ -154,4 +155,62 @@
   background: #f8fafc;
   border-color: #cbd5e1;
   transform: translateY(-2px);
+}
+
+/* Image Preview Styles */
+.image-preview-container {
+  margin-bottom: 10px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.image-preview-wrapper {
+  position: relative;
+  display: inline-block;
+  max-width: 200px;
+}
+
+.image-preview-container .image-preview {
+  max-width: 80px;
+  max-height: 80px;
+  border-radius: 8px;
+  object-fit: contain;
+  display: block;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  position: static;
+  width: auto;
+  height: auto;
+}
+
+.remove-image-button {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: #ff4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: background 0.2s;
+}
+
+.remove-image-button:hover {
+  background: #cc0000;
+}
+
+.image-preview-hint {
+  margin-top: 8px;
+  color: #666;
+  font-size: 13px;
+  font-style: italic;
 }
