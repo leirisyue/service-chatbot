@@ -1,12 +1,12 @@
 
 import json
 from datetime import datetime
-from typing import Dict, List, Optional
-
+from typing import Dict
+from fastapi import APIRouter
+from psycopg2.extras import RealDictCursor
+from typing import Dict
 import psycopg2
 from config import settings
-from fastapi import APIRouter, HTTPException, Request
-from psycopg2.extras import RealDictCursor
 
 
 def get_db():
@@ -80,7 +80,7 @@ def save_chat_to_history(session_id: str, user_message: str, bot_response: str,
             """
             cur.execute(update_sql, (json.dumps(existing_history), now, record_id))
             message_id = cur.fetchone()[0]
-            print(f" INFO: UPDATED id={message_id} | session={session_id[:8]}... | {search_type} | {result_count} results")
+            print(f"INFO: UPDATED id={message_id} | session={session_id[:8]}... | {search_type} | {result_count} results")
         else:
             # INSERT: Create new record
             insert_sql = """
@@ -251,153 +251,76 @@ def get_session_chat_history(email: str, session_id: str):
 # API ENDPOINTS
 # ========================================
 
-@router.get("/history/{session_id}")
-def get_session_history(session_id: str):
-    try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
+@router.get("/debug/products")
+def debug_products():
+    """Debug info vá»  products"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cur.execute("SELECT COUNT(*) as total FROM products")
+    total = cur.fetchone()['total']
+    
+    cur.execute("SELECT COUNT(*) as with_emb FROM products WHERE description_embedding IS NOT NULL")
+    with_emb = cur.fetchone()['with_emb']
+    
+    cur.execute("SELECT category, COUNT(*) as count FROM products GROUP BY category ORDER BY count DESC")
+    by_category = cur.fetchall()
+    
+    conn.close()
+    
+    return {
+        "total_products": total,
+        "with_embeddings": with_emb,
+        "coverage_percent": round(with_emb / total * 100, 1) if total > 0 else 0,
+        "by_category": [dict(c) for c in by_category]
+    }
 
-        sql = """
-            SELECT 
-                id,
-                history::text as history_json,
-                time_block,
-                chat_date,
-                session_id,
-                email,
-                created_at,
-                updated_at
-            FROM chat_histories
-            WHERE session_id = %s
-            ORDER BY created_at DESC
-            LIMIT 20
-        """
-        cur.execute(sql, (session_id,))
-        history = cur.fetchall()
-        conn.close()
+@router.get("/debug/materials")
+def debug_materials():
+    """Debug info vá»  materials"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cur.execute("SELECT COUNT(*) as total FROM materials")
+    total = cur.fetchone()['total']
+    
+    cur.execute("SELECT COUNT(*) as with_emb FROM materials WHERE description_embedding IS NOT NULL")
+    with_emb = cur.fetchone()['with_emb']
+    
+    cur.execute("SELECT material_group, COUNT(*) as count FROM materials GROUP BY material_group ORDER BY count DESC")
+    by_group = cur.fetchall()
+    
+    conn.close()
+    
+    return {
+        "total_materials": total,
+        "with_embeddings": with_emb,
+        "coverage_percent": round(with_emb / total * 100, 1) if total > 0 else 0,
+        "by_group": [dict(g) for g in by_group]
+    }
 
-        histories_list = []
-        for h in history:
-            record = dict(h)
-
-            # Convert datetime/date → string
-            if record.get("chat_date"):
-                record["chat_date"] = str(record["chat_date"])
-
-            if record.get("created_at"):
-                record["created_at"] = record["created_at"].isoformat()
-
-            if record.get("updated_at"):
-                record["updated_at"] = record["updated_at"].isoformat()
-
-            # Parse history từ JSON string
-            if record.get("history_json"):
-                try:
-                    record["history"] = json.loads(record["history_json"])
-                except:
-                    record["history"] = []
-                del record["history_json"]
-            else:
-                record["history"] = []
-
-            histories_list.append(record)
-
-        return {
-            "session_id": session_id,
-            "total_queries": len(histories_list),
-            "histories": histories_list
-        }
-
-    except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"Error in get_session_history: {error_detail}")
-        return {"Error": str(e), "detail": error_detail}
-
-@router.get("/chat_histories/{email}")
-def get_all_sessions_by_email(email: str):
-    """
-    Lấy danh sách tất cả sessions của một user, grouped by session_id
-    """
-    try:
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        sql = """
-            SELECT 
-                session_id,
-                MIN(chat_date) as first_chat_date,
-                MAX(chat_date) as last_chat_date,
-                MAX(updated_at) as last_updated,
-                COUNT(DISTINCT chat_date) as total_days,
-                SUM(
-                    CASE 
-                        WHEN jsonb_typeof(history) = 'array' 
-                        THEN jsonb_array_length(history)
-                        ELSE 0
-                    END
-                ) as total_messages
-            FROM chat_histories
-            WHERE email = %s
-            GROUP BY session_id
-            ORDER BY MAX(updated_at) DESC
-        """
-        
-        cur.execute(sql, (email,))
-        sessions = cur.fetchall()
-        conn.close()
-        
-        # Format response
-        sessions_list = []
-        for s in sessions:
-            session_dict = dict(s)
-            # Convert date/datetime to string
-            if session_dict.get("first_chat_date"):
-                session_dict["first_chat_date"] = str(session_dict["first_chat_date"])
-            if session_dict.get("last_chat_date"):
-                session_dict["last_chat_date"] = str(session_dict["last_chat_date"])
-            if session_dict.get("last_updated"):
-                session_dict["last_updated"] = session_dict["last_updated"].isoformat()
-            sessions_list.append(session_dict)
-        
-        return {
-            "email": email,
-            "total_sessions": len(sessions_list),
-            "sessions": sessions_list
-        }
-        
-    except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
-        print(f"Error retrieving sessions: {error_detail}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/chat_histories/{email}/{session_id}")
-def get_chat_history_by_session(email: str, session_id: str):
-    """
-    Lấy toàn bộ lịch sử chat của user theo session
-    Trả về tất cả chat từ nhiều ngày, sắp xếp theo thời gian
-    """
-    try:
-        result = get_session_chat_history(email, session_id)
-        
-        if result is None:
-            raise HTTPException(status_code=500, detail="Error retrieving chat history")
-        
-        if result["total_chats"] == 0:
-            return {
-                "message": "No chat history found",
-                "email": email,
-                "session_id": session_id,
-                "chats": []
-            }
-        
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error in endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+@router.get("/debug/chat-history")
+def debug_chat_history():
+    """Xem lá»‹ch sá»­ chat gáº§n Ä‘Ã¢y"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    cur.execute("""
+        SELECT 
+            session_id,
+            user_message,
+            intent,
+            result_count,
+            created_at
+        FROM chat_history
+        ORDER BY created_at DESC
+        LIMIT 20
+    """)
+    
+    history = cur.fetchall()
+    conn.close()
+    
+    return {
+        "recent_chats": [dict(h) for h in history]
+    }
 

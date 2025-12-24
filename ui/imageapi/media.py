@@ -69,10 +69,10 @@ def create_media(url:str, request: Request):
         "url": f"{base_url}/api/media/{media_id}"
     }
 
-
 # ===============================
 # GET: trả ảnh từ cache
 # ===============================
+
 @router.get("/media/{media_id}")
 def get_media(media_id: str):
     clean_id = media_id.split(".")[0]
