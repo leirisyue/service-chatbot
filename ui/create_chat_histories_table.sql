@@ -11,7 +11,8 @@ CREATE TABLE IF NOT EXISTS chat_histories (
     chat_date DATE NOT NULL,          -- ngày chat (YYYY-MM-DD)
     time_block SMALLINT NOT NULL,     -- 1 = 0-12h, 2 = 12-24h
     
-    history JSONB NOT NULL,           -- toàn bộ Q&A: [{"q": "...", "a": "...", "timestamp": "..."}]
+    history JSONB NOT NULL,
+    isDeleted BOOLEAN DEFAULT FALSE,           -- toàn bộ Q&A: [{"q": "...", "a": "...", "timestamp": "..."}]
     
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW(),

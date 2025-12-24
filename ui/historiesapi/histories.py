@@ -122,7 +122,12 @@ def get_time_block(hour: int) -> int:
     return 1 if hour < 12 else 2
 
 # FUNC mới để lưu lịch sử chat theo block thời gian
-def save_chat_to_histories(email: str, session_id: str, question: str, answer: str):
+def save_chat_to_histories(email: str, 
+                        session_id: str, 
+                        question: str, 
+                        answer: str,
+                        messages: str = None,
+                        session_name:str="New Session"):
     """
     Save or update chat history based on date and time block
     - If same day and time block: UPDATE existing record (append to JSONB)
@@ -144,6 +149,7 @@ def save_chat_to_histories(email: str, session_id: str, question: str, answer: s
             "q": question,
             "a": answer,
             "timestamp": timestamp,
+            "messages": messages or []
         }
         
         # Check if record exists for this email, session, date, and time_block
@@ -178,13 +184,12 @@ def save_chat_to_histories(email: str, session_id: str, question: str, answer: s
             # INSERT: Create new record
             insert_sql = """
                 INSERT INTO chat_histories 
-                (email, session_id, chat_date, time_block, history)
-                VALUES (%s, %s, %s, %s, %s)
+                (email, session_name, session_id, chat_date, time_block, history)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 RETURNING id
             """
-            
             history_json = json.dumps([new_chat_entry])
-            cur.execute(insert_sql, (email, session_id, chat_date, time_block, history_json))
+            cur.execute(insert_sql, (email, session_name, session_id, chat_date, time_block, history_json))
             record_id = cur.fetchone()[0]
             print(f"CREATED chat_histories: {email} | {session_id[:8]}... | {chat_date} | Block {time_block}")
         
@@ -210,13 +215,15 @@ def get_session_chat_history(email: str, session_id: str):
                 id,
                 email,
                 session_id,
+                session_name,
+                isDeleted,
                 chat_date,
                 time_block,
                 history,
                 created_at,
                 updated_at
             FROM chat_histories
-            WHERE email = %s AND session_id = %s
+            WHERE email = %s AND session_id = %s AND isDeleted = false
             ORDER BY chat_date ASC, time_block ASC
         """
         cur.execute(sql, (email, session_id))
@@ -238,6 +245,7 @@ def get_session_chat_history(email: str, session_id: str):
         return {
             "email": email,
             "session_id": session_id,
+            "session_name": record['session_name'],
             "total_records": len(records),
             "total_chats": len(all_chats),
             "chats": all_chats
@@ -264,11 +272,12 @@ def get_session_history(session_id: str):
                 time_block,
                 chat_date,
                 session_id,
+                session_name,
                 email,
                 created_at,
                 updated_at
             FROM chat_histories
-            WHERE session_id = %s
+            WHERE session_id = %s AND isDeleted = false
             ORDER BY created_at DESC
             LIMIT 20
         """
@@ -279,17 +288,13 @@ def get_session_history(session_id: str):
         histories_list = []
         for h in history:
             record = dict(h)
-
             # Convert datetime/date → string
             if record.get("chat_date"):
                 record["chat_date"] = str(record["chat_date"])
-
             if record.get("created_at"):
                 record["created_at"] = record["created_at"].isoformat()
-
             if record.get("updated_at"):
                 record["updated_at"] = record["updated_at"].isoformat()
-
             # Parse history từ JSON string
             if record.get("history_json"):
                 try:
@@ -299,20 +304,21 @@ def get_session_history(session_id: str):
                 del record["history_json"]
             else:
                 record["history"] = []
-
             histories_list.append(record)
-
+            
         return {
             "session_id": session_id,
+            "session_name": record['session_name'],
             "total_queries": len(histories_list),
             "histories": histories_list
         }
-
+        
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
         print(f"Error in get_session_history: {error_detail}")
         return {"Error": str(e), "detail": error_detail}
+
 
 @router.get("/chat_histories/{email}")
 def get_all_sessions_by_email(email: str):
@@ -326,6 +332,7 @@ def get_all_sessions_by_email(email: str):
         sql = """
             SELECT 
                 session_id,
+                session_name,
                 MIN(chat_date) as first_chat_date,
                 MAX(chat_date) as last_chat_date,
                 MAX(updated_at) as last_updated,
@@ -338,7 +345,7 @@ def get_all_sessions_by_email(email: str):
                     END
                 ) as total_messages
             FROM chat_histories
-            WHERE email = %s
+            WHERE email = %s AND isDeleted = false
             GROUP BY session_id
             ORDER BY MAX(updated_at) DESC
         """
@@ -389,9 +396,9 @@ def get_chat_history_by_session(email: str, session_id: str):
                 "message": "No chat history found",
                 "email": email,
                 "session_id": session_id,
+                "session_name":result.get("session_name",""),
                 "chats": []
             }
-        
         return result
         
     except HTTPException:

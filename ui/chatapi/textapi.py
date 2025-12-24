@@ -22,7 +22,7 @@ from config import settings
 from historiesapi import histories
 from historiesapi.histories import router as history_router
 from imageapi.media import router as media_router
-from .textfunc import calculate_product_total_cost,get_latest_material_price,extract_product_keywords,call_gemini_with_retry, search_products_hybrid, search_products_keyword_only
+from .textfunc import format_search_results,calculate_product_total_cost,get_latest_material_price,extract_product_keywords,call_gemini_with_retry, search_products_hybrid, search_products_keyword_only
 from .unit import ChatMessage
 from .embeddingapi import generate_embedding
 
@@ -161,7 +161,6 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
                 match = re.search(r'\b([A-Z0-9]+-?[A-Z0-9]+)\b', user_message.upper())
                 if match:
                     result["params"]["headcode"] = match.group(1)
-        
         return result
         
     except json.JSONDecodeError as e:
@@ -208,8 +207,8 @@ def search_products(params: Dict):
     try:
         sql = """
             SELECT headcode, product_name, category, sub_category, 
-                   material_primary, project, project_id,
-                   (description_embedding <=> %s::vector) as distance
+                  material_primary, project, project_id,
+                  (description_embedding <=> %s::vector) as distance
             FROM products
             WHERE description_embedding IS NOT NULL
             ORDER BY distance ASC
@@ -232,8 +231,7 @@ def search_products(params: Dict):
     return search_products_keyword_only(params)
 
 
-def apply_feedback_to_search(items: list, query: str, search_type: str, 
-                             id_key: str = "headcode") -> list:
+def apply_feedback_to_search(items: list, query: str, search_type: str, id_key: str = "headcode") -> list:
     """
     Tự động áp dụng feedback ranking cho MỌI loại search
     - Lấy feedback history
@@ -417,7 +415,6 @@ def search_products_by_material(material_query: str, params: Dict):
             ORDER BY material_match_count DESC, p.product_name ASC
             LIMIT 20
         """
-        
         cur.execute(sql, [material_ids] + filter_params)
         results = cur.fetchall()
         
@@ -446,14 +443,13 @@ def search_products_by_material(material_query: str, params: Dict):
                     "matched_materials": [],
                     "relevance_score": 0
                 }
-            
             products_dict[headcode]["matched_materials"].append({
                 "name": row['material_name'],
                 "id": row['material_id'],
                 "quantity": row['quantity']
             })
             products_dict[headcode]["relevance_score"] += 1
-        
+            
         products_list = sorted(
             products_dict.values(),
             key=lambda x: x['relevance_score'],
@@ -545,7 +541,7 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
                     continue
                 
                 print(f"SUCCESS: Query: '{fb['query'][:50]}...' (sim={sim:.2f})")
-                print(f"   → Selected: {selected[:3]}")
+                print(f"→ Selected: {selected[:3]}")
                 
                 for item_id in selected:
                     # Điểm = similarity * 1 (có thể thay bằng decay theo thời gian)
@@ -573,8 +569,7 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
         return {}
 
 
-def rerank_with_feedback(items: list, feedback_scores: Dict, 
-                         id_key: str = "headcode", boost_weight: float = 0.3):
+def rerank_with_feedback(items: list, feedback_scores: Dict, id_key: str = "headcode", boost_weight: float = 0.3):
     
     if not feedback_scores:
         print("WARNING: Không có feedback scores để rerank")
@@ -672,11 +667,11 @@ def get_product_materials(headcode: str):
     if not materials:
         return {
             "response": f"WARNING: Sản phẩm **{prod['product_name']}** ({headcode}) chưa có định mức vật liệu.\n\n"
-                       f"Có thể:\n"
-                       f"• Sản phẩm mới chưa nhập định mức\n"
-                       f"• Chưa import file product_materials.csv\n"
-                       f"• Mã sản phẩm trong product_materials không khớp\n\n"
-                       f"Vui lòng kiểm tra lại hoặc liên hệ bộ phận kỹ thuật."
+                      f"Có thể:\n"
+                      f"• Sản phẩm mới chưa nhập định mức\n"
+                      f"• Chưa import file product_materials.csv\n"
+                      f"• Mã sản phẩm trong product_materials không khớp\n\n"
+                      f"Vui lòng kiểm tra lại hoặc liên hệ bộ phận kỹ thuật."
         }
     
     total = 0
@@ -764,7 +759,6 @@ def calculate_product_cost(headcode: str):
         WHERE pm.product_headcode = %s
         ORDER BY m.material_name ASC
     """
-    
     try:
         cur.execute(sql, (headcode,))
         materials = cur.fetchall()
@@ -779,13 +773,13 @@ def calculate_product_cost(headcode: str):
     if not materials:
         return {
             "response": f"⚠️ Sản phẩm **{prod['product_name']}** ({headcode}) chưa có định mức vật liệu.\n\n"
-                       f"**Nguyên nhân có thể:**\n"
-                       f"• Sản phẩm mới chưa nhập định mức\n"
-                       f"• Chưa import file `product_materials.csv`\n"
-                       f"• Mã sản phẩm trong file CSV không khớp với `{headcode}`\n\n"
-                       f"**Giải pháp:**\n"
-                       f"1. Kiểm tra file CSV có dòng nào với `product_headcode = {headcode}`\n"
-                       f"2. Import lại file qua sidebar: **Import Dữ Liệu → Định Mức**"
+                      f"**Nguyên nhân có thể:**\n"
+                      f"• Sản phẩm mới chưa nhập định mức\n"
+                      f"• Chưa import file `product_materials.csv`\n"
+                      f"• Mã sản phẩm trong file CSV không khớp với `{headcode}`\n\n"
+                      f"**Giải pháp:**\n"
+                      f"1. Kiểm tra file CSV có dòng nào với `product_headcode = {headcode}`\n"
+                      f"2. Import lại file qua sidebar: **Import Dữ Liệu → Định Mức**"
         }
     
     # ✅ Tính TỔNG CHI PHÍ VẬT LIỆU
@@ -1176,6 +1170,7 @@ def chat(msg: ChatMessage):
         result_response = None
         result_count = 0
         
+        listProducts = []
         # GREETING
         if intent == "greeting":
             result_response = {
@@ -1245,7 +1240,7 @@ def chat(msg: ChatMessage):
                     "ranking_summary": ranking_summary,  # ✅ THÊM
                     "can_provide_feedback": True  # ✅ THÊM
                 }
-                
+            
         elif intent == "search_product_by_material":
             material_query = params.get("material_name") or params.get("material_primary") or params.get("keywords_vector")
             
@@ -1287,7 +1282,7 @@ def chat(msg: ChatMessage):
                         "search_method": "cross_table",
                         "can_provide_feedback": True
                     }
-
+                    
         elif intent == "query_product_materials":
             headcode = params.get("headcode")
             
@@ -1302,7 +1297,7 @@ def chat(msg: ChatMessage):
             else:
                 result_response = get_product_materials(headcode)
                 result_count = len(result_response.get("materials", []))
-        
+                
         elif intent == "calculate_product_cost":
             headcode = params.get("headcode")
             
@@ -1379,7 +1374,6 @@ def chat(msg: ChatMessage):
                         f"🔍 Chi tiết {first_mat['material_name']}",
                         "📋 Xem nhóm vật liệu khác"
                     ]
-                
                 result_response = {
                     "response": response_text,
                     "materials": materials,
@@ -1387,7 +1381,6 @@ def chat(msg: ChatMessage):
                     "ranking_summary": ranking_summary,  # 🆕
                     "can_provide_feedback": True  # 🆕
                 }      
-                
         elif intent == "query_material_detail":
             id_sap = params.get("id_sap")
             material_name = params.get("material_name")
@@ -1433,12 +1426,15 @@ def chat(msg: ChatMessage):
             # Lấy keywords từ params
             if params.get("keywords_vector"):
                 keywords = extract_product_keywords(params["keywords_vector"])
-        
+                
+        print(f"SUCCESS => Final response: {result_response.get('materials', '')}, count: {result_count}")
+        listProducts = listProducts or result_response.get("products", []) or result_response.get("materials", [])
         # Save chat history
         histories.save_chat_to_histories(
             email="test@gmail.com",
             session_id=msg.session_id,
             question=user_message,
+            messages=listProducts,
             answer=result_response.get("response", "")
         )
         return result_response
@@ -1448,5 +1444,3 @@ def chat(msg: ChatMessage):
         import traceback
         traceback.print_exc()
         return {"response": f"⚠️ Lỗi hệ thống: {str(e)}"}
-
-

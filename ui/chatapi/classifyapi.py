@@ -237,12 +237,11 @@ async def search_by_image(
             answer=f"Phân tích ảnh: {ai_result.get('visual_description', 'N/A')[:100]}... | Tìm thấy {len(products)} sản phẩm"
         )
 
-
         if not products:
             return {
                 "response": f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm nội thất')}**.\n\n"
-                           f"Tuy nhiên, không tìm thấy sản phẩm tương tự trong kho dữ liệu.\n\n"
-                           f"💡 Gợi ý: Thử mô tả bằng từ khóa hoặc upload ảnh rõ hơn.",
+                        f"Tuy nhiên, không tìm thấy sản phẩm tương tự trong kho dữ liệu.\n\n"
+                        f"💡 Gợi ý: Thử mô tả bằng từ khóa hoặc upload ảnh rõ hơn.",
                 "products": [],
                 "ai_interpretation": ai_result.get("visual_description", "")
             }
@@ -343,9 +342,7 @@ def classify_pending_products():
                         classified += 1
                     except Exception as e:
                         errors.append(f"{batch[j]['headcode']}: {str(e)[:50]}")
-                
                 conn.commit()
-                
                 # Delay giữa các batch để tránh rate limit
                 if i + BATCH_SIZE < len(pending_products):
                     time.sleep(4)

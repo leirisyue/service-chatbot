@@ -8,7 +8,6 @@ from typing import Dict
 import psycopg2
 from config import settings
 
-
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
 
@@ -56,6 +55,7 @@ def save_chat_to_history(session_id: str, user_message: str, bot_response: str,
                 AND session_id = %s 
                 AND chat_date = %s 
                 AND time_block = %s
+                AND session_id = %s
         """
         cur.execute(check_sql, (email, session_id, chat_date, time_block))
         existing = cur.fetchone()
@@ -114,7 +114,7 @@ def save_chat_to_history(session_id: str, user_message: str, bot_response: str,
         import traceback
         traceback.print_exc()
         return None
-    
+
 def get_time_block(hour: int) -> int:
     """Determine time block based on hour
     Returns 1 for 0-12h, 2 for 12-24h

@@ -115,6 +115,9 @@ if "debug_mode" not in st.session_state:
 
 if "session_id" not in st.session_state:
     st.session_state.session_id = str(uuid.uuid4())
+    
+if "session_name" not in st.session_state:
+    st.session_state.session_name = "New Session"
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
