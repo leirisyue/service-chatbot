@@ -6,7 +6,7 @@ import ChatContainer from './components/Chat/ChatContainer';
 import ChatInput from './components/Input/ChatInput';
 import SuggestedPrompts from './components/Input/SuggestedPrompts';
 import MainLayout from './components/Layout/MainLayout';
-import Sidebar from './components/Sidebar/Sidebar';
+import Sidebar from './components/Sidebar/SidebarOld';
 import { searchByImage, sendMessage } from './services/api';
 
 function App() {
@@ -180,6 +180,11 @@ function App() {
   }, [messages]);
 
   const handleResetChat = () => {
+    // Tạo session mới
+    const newSessionId = uuidv4();
+    setSessionId(newSessionId);
+    localStorage.setItem('chat_session_id', newSessionId);
+    
     setMessages([]);
     setContext({
       last_search_results: [],
@@ -188,10 +193,10 @@ function App() {
       search_params: {}
     });
     setSuggestedPrompts([
-      "🔍 Tìm sản phẩm",
-      "🧱 Tìm nguyên vật liệu",
-      "💰 Tính chi phí",
-      "📋 Danh sách nhóm vật liệu"
+      "🔍 Danh sách sản phẩm",
+      // "🧱 Tìm nguyên vật liệu",
+      // "💰 Tính chi phí",
+      // "📋 Danh sách nhóm vật liệu"
     ]);
 
     // Thêm welcome message lại
@@ -205,12 +210,38 @@ function App() {
     setMessages([welcomeMessage]);
   };
 
+  const handleLoadSession = (loadedSessionId, history) => {
+    // Chuyển đổi sang session được load
+    setSessionId(loadedSessionId);
+    localStorage.setItem('chat_session_id', loadedSessionId);
+    
+    // Convert history từ database sang format messages
+    const convertedMessages = history.map(item => ({
+      role: item.role,
+      content: item.content,
+      timestamp: new Date(item.timestamp).getTime(),
+      data: item.data || null,
+      imageUrl: item.image_url || null
+    }));
+    
+    setMessages(convertedMessages);
+    
+    // Reset context khi load session mới
+    setContext({
+      last_search_results: [],
+      current_products: [],
+      current_materials: [],
+      search_params: {}
+    });
+  };
+
   return (
     <MainLayout
       sidebar={
         <Sidebar
           sessionId={sessionId}
           onResetChat={handleResetChat}
+          // onLoadSession={handleLoadSession}
         />
       }
       mainContent={

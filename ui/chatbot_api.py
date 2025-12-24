@@ -15,6 +15,9 @@ import io
 import psycopg2
 
 from config import settings
+from historiesapi import histories
+from historiesapi.histories import router as history_router
+from imageapi.media import router as media_router
 
 DB_CONFIG = {
     "dbname": "db_vector",
@@ -160,7 +163,7 @@ def search_products_hybrid(params: Dict):
                 params.get("material_primary", "")]
         base = " ".join([p for p in parts if p]) or "nội thất"
     
-    print(f"\n🔍 Query: {base}")
+    # print(f"\n🔍 Query: {base}")
     
     # 2. AI Expansion
     expanded = expand_search_query(base, params)
@@ -349,58 +352,6 @@ OUTPUT JSON ONLY:
             "material_subgroup": "Chưa phân loại"
         }
 
-# ========================================
-# [NEW] CHAT HISTORY
-# ========================================
-
-# ========================================
-# FIX 1: DÒNG ~430-460
-# Thay thế hàm save_chat_history
-# ========================================
-
-def save_chat_history(session_id: str, user_message: str, bot_response: str, 
-                     intent: str, params: Dict, result_count: int,
-                     search_type: str = "text",
-                     expanded_query: str = None,
-                     extracted_keywords: list = None):
-    """Lưu lịch sử chat ĐẦY ĐỦ để học - V4.7 FIX"""
-    try:
-        conn = get_db()
-        cur = conn.cursor()
-        
-        # ✅ QUAN TRỌNG: Tạo embedding cho query ngay khi lưu
-        query_embedding = None
-        if user_message:
-            query_embedding = generate_embedding(user_message)
-        
-        sql = """
-            INSERT INTO chat_histories 
-            (session_id, user_message, bot_response, intent, params, result_count,
-            search_type, expanded_query, extracted_keywords, query_embedding)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
-        """
-        
-        cur.execute(sql, (
-            session_id, user_message, bot_response, 
-            intent, json.dumps(params), result_count,
-            search_type,
-            expanded_query,
-            json.dumps(extracted_keywords) if extracted_keywords else None,
-            query_embedding  # ✅ MỚI: Lưu embedding
-        ))
-        
-        message_id = cur.fetchone()[0]  # ✅ Lấy ID message
-        
-        conn.commit()
-        conn.close()
-        print(f"💾 SAVED: msg_id={message_id} | {session_id[:8]}... | {search_type} | {result_count} results")
-        
-        return message_id  # ✅ Trả về ID để UI dùng
-        
-    except Exception as e:
-        print(f"❌ Lỗi save chat history: {e}")
-        return None
 # ========================================
 # HELPER - LẤY GIÁ MỚI NHẤT
 # ========================================
@@ -1030,9 +981,7 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
 
 def rerank_with_feedback(items: list, feedback_scores: Dict, 
                          id_key: str = "headcode", boost_weight: float = 0.3):
-    """
-    🎯 Re-rank kết quả dựa trên feedback - V4.7 DEBUG
-    """
+    
     if not feedback_scores:
         print("⚠️ Không có feedback scores để rerank")
         return items
@@ -2171,26 +2120,20 @@ def chat(msg: ChatMessage):
                 keywords = extract_product_keywords(params["keywords_vector"])
         
         # # Save to old chat_history table (keep for backward compatibility)
-        # save_chat_history(
-        #     msg.session_id,
-        #     user_message,
-        #     result_response.get("response", ""),
-        #     intent,
-        #     params,
-        #     result_count,
-        #     search_type="text",
-        #     expanded_query=expanded,
-        #     extracted_keywords=keywords
-        # )
-        
-        save_chat_to_history(
-            # email=msg.email,
-            email= "test@gmail.com",
-            session_id=msg.session_id,
-            question=intent_data,
-            answer=result_response.get("response", "")
+        histories.save_chat_to_histories(
+            msg.session_id,
+            user_message,
+            result_response.get("response", ""),
+            intent,
+            params,
+            result_count,
+            search_type="text",
+            email="test@gmail.com",
+            expanded_query=expanded,
+            extracted_keywords=keywords
         )
         
+
         return result_response
     
     except Exception as e:
@@ -2311,7 +2254,8 @@ async def search_by_image(
         search_result = search_products(params)
         products = search_result.get("products", [])
         
-        save_chat_history(
+        histories.save_chat_to_histories(
+            email="test@gmail.com",
             session_id=session_id,
             user_message="[IMAGE_UPLOAD]",
             bot_response=f"Phân tích ảnh: {ai_result.get('visual_description', 'N/A')[:100]}... | Tìm thấy {len(products)} sản phẩm",
@@ -3300,18 +3244,9 @@ def root():
     }
 
 # ========================================
-# [4] VIEW IMAGE INTERNAL UTILS
-# public hình ảnh cho REACT
+# [4] ROUTE INCLUDES
 # ========================================
-# mount media giống Streamlit
-from imageapi.media import router as media_router
 app.include_router(media_router)
-# ========================================
-# [4] VIEW IMAGE INTERNAL UTILS
-# public hình ảnh cho REACT
-# ========================================
-# mount media giống Streamlit
-from historiesapi.histories import router as history_router
 app.include_router(history_router)
 
 if __name__ == "__main__":

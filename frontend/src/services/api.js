@@ -126,3 +126,14 @@ export const createMedia = async (imageUrl) => {
   const response = await api.post("/media", imageUrl);
   return response.data;
 };
+
+// Chat History endpoints
+export const getChatSessions = async () => {
+  const response = await api.get('/chat-history/sessions');
+  return response.data;
+};
+
+export const getSessionHistory = async (sessionId) => {
+  const response = await api.get(`/chat-history/session/${sessionId}`);
+  return response.data;
+};

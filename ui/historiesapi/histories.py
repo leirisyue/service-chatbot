@@ -1,26 +1,135 @@
 
-from datetime import datetime
-import psycopg2
-from psycopg2.extras import RealDictCursor
 import json
-from fastapi import APIRouter, HTTPException, Request
+from datetime import datetime
+from typing import Dict, List, Optional
 
+import psycopg2
 from config import settings
+from fastapi import APIRouter, HTTPException, Request
+from psycopg2.extras import RealDictCursor
+
+
+DB_CONFIG = {
+    "dbname": "db_vector",
+    "user": "postgres",
+    "password": "postgres",
+    "host": "localhost",
+    "port": "5432"
+}
 
 def get_db():
-    return psycopg2.connect(settings.DB_CONFIG)
+    return psycopg2.connect(**DB_CONFIG)
 
 router = APIRouter()
 # ========================================
 # DATABASE HELPERS
 # ========================================
 
+# FUNC cũ để lưu lịch sử chat
+def save_chat_to_histories(session_id: str, user_message: str, bot_response: str, 
+                    intent: str, params: Dict, result_count: int,
+                    search_type: str = "text",
+                    expanded_query: str = None,
+                    extracted_keywords: list = None,
+                    email: str = None):
+    """Lưu lịch sử chat vào bảng chat_histories - V4.7 FIX with UPSERT"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        
+        # Lấy thời gian hiện tại
+        now = datetime.now()
+        chat_date = now.date()
+        # time_block: 1 = 0-12h, 2 = 12-24h
+        time_block = 1 if now.hour < 12 else 2
+        
+        # Tạo history JSON entry
+        history_entry = {
+            "user_message": user_message,
+            "bot_response": bot_response,
+            "intent": intent,
+            "params": params,
+            "result_count": result_count,
+            "search_type": search_type,
+            "expanded_query": expanded_query,
+            "extracted_keywords": extracted_keywords,
+            "timestamp": now.isoformat()
+        }
+        
+        # Check if record exists for this email, session, date, and time_block
+        check_sql = """
+            SELECT id, history 
+            FROM chat_histories 
+            WHERE email = %s 
+                AND session_id = %s 
+                AND chat_date = %s 
+                AND time_block = %s
+        """
+        cur.execute(check_sql, (email, session_id, chat_date, time_block))
+        existing = cur.fetchone()
+        
+        if existing:
+            # UPDATE: Append to existing history
+            record_id = existing[0]
+            existing_history = existing[1]
+            
+            # If existing_history is a dict (old format), convert to list
+            if isinstance(existing_history, dict):
+                existing_history = [existing_history]
+            
+            # Append new entry
+            existing_history.append(history_entry)
+            
+            update_sql = """
+                UPDATE chat_histories 
+                SET history = %s, updated_at = %s
+                WHERE id = %s
+                RETURNING id
+            """
+            cur.execute(update_sql, (json.dumps(existing_history), now, record_id))
+            message_id = cur.fetchone()[0]
+            print(f"💾 UPDATED: id={message_id} | session={session_id[:8]}... | {search_type} | {result_count} results")
+        else:
+            # INSERT: Create new record
+            insert_sql = """
+                INSERT INTO chat_histories 
+                (email, session_id, chat_date, time_block, history, created_at, updated_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """
+            
+            history_json = json.dumps([history_entry])
+            cur.execute(insert_sql, (
+                email,
+                session_id,
+                chat_date,
+                time_block,
+                history_json,
+                now,
+                now
+            ))
+            
+            message_id = cur.fetchone()[0]
+            print(f"💾 CREATED: id={message_id} | session={session_id[:8]}... | {search_type} | {result_count} results")
+        
+        conn.commit()
+        conn.close()
+        
+        return message_id
+        
+    except Exception as e:
+        print(f"❌ Lỗi save chat history: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+    
 def get_time_block(hour: int) -> int:
     """Determine time block based on hour
     Returns 1 for 0-12h, 2 for 12-24h
     """
     return 1 if hour < 12 else 2
 
+# FUNC mới để lưu lịch sử chat theo block thời gian
 def save_chat_to_history(email: str, session_id: str, question: str, answer: str):
     """
     Save or update chat history based on date and time block
@@ -211,35 +320,6 @@ def get_session_history(session_id: str):
 
     
 
-@router.get("/chat_histories/{email}/{session_id}")
-def get_chat_history_by_session(email: str, session_id: str):
-    """
-    Lấy toàn bộ lịch sử chat của user theo session
-    Trả về tất cả chat từ nhiều ngày, sắp xếp theo thời gian
-    """
-    try:
-        result = get_session_chat_history(email, session_id)
-        
-        if result is None:
-            raise HTTPException(status_code=500, detail="Error retrieving chat history")
-        
-        if result["total_chats"] == 0:
-            return {
-                "message": "No chat history found",
-                "email": email,
-                "session_id": session_id,
-                "chats": []
-            }
-        
-        return result
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error in endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @router.get("/chat_histories/{email}")
 def get_all_sessions_by_email(email: str):
     """
@@ -274,6 +354,35 @@ def get_all_sessions_by_email(email: str):
         
     except Exception as e:
         print(f"❌ Error retrieving sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/chat_histories/{email}/{session_id}")
+def get_chat_history_by_session(email: str, session_id: str):
+    """
+    Lấy toàn bộ lịch sử chat của user theo session
+    Trả về tất cả chat từ nhiều ngày, sắp xếp theo thời gian
+    """
+    try:
+        result = get_session_chat_history(email, session_id)
+        
+        if result is None:
+            raise HTTPException(status_code=500, detail="Error retrieving chat history")
+        
+        if result["total_chats"] == 0:
+            return {
+                "message": "No chat history found",
+                "email": email,
+                "session_id": session_id,
+                "chats": []
+            }
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error in endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
