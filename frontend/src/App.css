@@ -43,7 +43,7 @@ body {
   height: 100vh;
   padding: 20px;
   background: white;
-  border-radius: 12px;
+  /* border-radius: 12px; */
   box-shadow: var(--card-shadow);
 }
 

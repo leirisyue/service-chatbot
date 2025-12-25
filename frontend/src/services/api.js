@@ -128,12 +128,19 @@ export const createMedia = async (imageUrl) => {
 };
 
 // Chat History endpoints
-export const getChatSessions = async () => {
-  const response = await api.get('/chat-history/sessions');
+export const getChatSessionId = async (session_id) => {
+  if (!session_id) return [];
+  const response = await api.get(`/history/${session_id}`);
   return response.data;
 };
 
-export const getSessionHistory = async (sessionId) => {
-  const response = await api.get(`/chat-history/session/${sessionId}`);
+export const getChatSessions = async (email) => {
+  if (!email) return [];
+  const response = await api.get(`/chat_histories/${email}`);
+  return response.data;
+};
+
+export const getSessionHistory = async (email, sessionId) => {
+  const response = await api.get(`/chat_histories/${email}/${sessionId}`);
   return response.data;
 };

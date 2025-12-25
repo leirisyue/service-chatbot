@@ -13,6 +13,10 @@ def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
 
 router = APIRouter()
+# Configure once
+if settings.GOOGLE_API_KEY:
+    genai.configure(api_key=settings.GOOGLE_API_KEY)
+    
 # ========================================
 # FUNCTION DEFINITIONS
 # ========================================

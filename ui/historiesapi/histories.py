@@ -346,7 +346,7 @@ def get_all_sessions_by_email(email: str):
                 ) as total_messages
             FROM chat_histories
             WHERE email = %s AND isDeleted = false
-            GROUP BY session_id
+            GROUP BY session_id,session_name
             ORDER BY MAX(updated_at) DESC
         """
         

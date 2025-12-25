@@ -12,29 +12,32 @@ import {
   getChatSessions,
   getSessionHistory
 } from '../../services/api';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import Button from '@mui/material/Button';
+import { emailUserAtom } from '../../atom/variableAtom';
+import { useAtomValue } from 'jotai/react';
+import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 
 function Sidebar({ sessionId, onResetChat, onLoadSession }) {
+
   const [importResults, setImportResults] = useState({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [debugInfo, setDebugInfo] = useState(null);
   const [chatSessions, setChatSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
   const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const emailUser = useAtomValue(emailUserAtom);
 
   // Load danh sách sessions khi component mount
   useEffect(() => {
     loadChatSessions();
   }, []);
 
-  // Update selected session khi sessionId thay đổi
-  useEffect(() => {
-    setSelectedSession(sessionId);
-  }, [sessionId]);
-
   const loadChatSessions = async () => {
     setIsLoadingSessions(true);
     try {
-      const sessions = await getChatSessions();
+      const sessions = await getChatSessions(emailUser);
+      console.log("🚀 ~ loadChatSessions ~ sessions:", sessions);
       setChatSessions(sessions);
     } catch (error) {
       console.error('Error loading sessions:', error);
@@ -42,6 +45,14 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
       setIsLoadingSessions(false);
     }
   };
+
+  useEffect(() => {
+    setSelectedSession(sessionId);
+  }, [sessionId]);
+
+  useEffect(() => {
+    loadChatSessions();
+  }, [emailUser]);
 
   const handleSessionClick = async (session) => {
     try {
@@ -80,10 +91,11 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
   };
 
   const getSessionPreview = (history) => {
+    console.log("🚀 ~ getSessionPreview ~ history:", history);
     if (!history || history.length === 0) return 'Không có tin nhắn';
 
     // Lấy tin nhắn đầu tiên của user
-    const firstUserMessage = history.find(h => h.role === 'user');
+    const firstUserMessage = history?.find(h => h.role === 'user');
     if (firstUserMessage && firstUserMessage.content) {
       return firstUserMessage.content.substring(0, 50) + (firstUserMessage.content.length > 50 ? '...' : '');
     }
@@ -185,14 +197,16 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2>💬 Lịch Sử Trò Chuyện</h2>
-        <button
+        <Button
           className="btn-new-chat"
           onClick={onResetChat}
           disabled={isProcessing}
+          startIcon={<QuestionAnswerIcon />}
+          variant="contained"
+          color="primary"
         >
-          ➕ Chat Mới
-        </button>
+          Mở Chat Mới
+        </Button>
       </div>
 
       <div className="sessions-container">
@@ -200,48 +214,45 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
           <div className="loading-sessions">
             <p>Đang tải...</p>
           </div>
-        ) : chatSessions.length === 0 ? (
+        ) : chatSessions?.sessions?.length === 0 ? (
           <div className="empty-sessions">
             <p>Chưa có lịch sử trò chuyện</p>
           </div>
         ) : (
           <div className="sessions-list">
-            {chatSessions.map((session) => (
+            {chatSessions?.sessions?.map((session) => (
               <div
-                key={session.session_id}
-                className={`session-item ${selectedSession === session.session_id ? 'active' : ''}`}
+                key={session?.session_id}
+                className={`session-item ${selectedSession === session?.session_id ? 'active' : ''}`}
                 onClick={() => handleSessionClick(session)}
               >
                 <div className="session-header">
-                  <span className="session-icon">💬</span>
+                  <span className="session-icon" style={{paddingLeft:'10px'}}>
+                    <ChatBubbleOutlineIcon sx={{ fontSize: 15 }} />
+                  </span>
                   <div className="session-info">
                     <div className="session-preview">
-                      {getSessionPreview(session.history)}
+                      {/* {getSessionPreview(session?.session_name)} */}
+                      {session?.session_name}
                     </div>
                     <div className="session-date">
-                      {formatDate(session.updated_at || session.created_at)}
+                      {formatDate(session.last_updated || session.created_at)}
                     </div>
                   </div>
                 </div>
-                {session.history && session.history.length > 0 && (
+                {/* {session.history && session.history.length > 0 && (
                   <div className="session-count">
                     {session.history.length} tin nhắn
                   </div>
-                )}
+                )} */}
               </div>
             ))}
+            
           </div>
         )}
       </div>
-      
       <div className="sidebar-footer">
-        <button
-          className="btn-refresh"
-          onClick={loadChatSessions}
-          disabled={isLoadingSessions}
-        >
-          🔄 Làm mới
-        </button>
+        {emailUser ? `${emailUser}` : 'Chưa có Email người dùng'}
       </div>
     </div >
   );
