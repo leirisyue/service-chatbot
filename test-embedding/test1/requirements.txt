@@ -1,0 +1,7 @@
+python-dotenv
+psycopg2-binary
+google-generativeai
+ollama
+numpy
+scikit-learn
+pandas
