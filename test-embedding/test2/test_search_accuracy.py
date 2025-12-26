@@ -103,10 +103,6 @@ def embed_query_qwen(query: str) -> List[float]:
 
 
 def embed_query_opensearch_sparse(query: str) -> Dict[str, float]:
-    """Embed câu query bằng model sparse OpenSearch (token -> weight).
-
-    Dùng cùng model với embed_with_opensearch_sparse trong embed_test_with_logging_and_db.py.
-    """
     model, tokenizer, special_token_ids, id_to_token = _load_opensearch_sparse_model()
 
     feature = tokenizer(
@@ -150,11 +146,6 @@ def search_with_pgvector(
     query_emb: List[float],
     top_k: int = 10,
 ) -> List[dict]:
-    """
-    Dùng pgvector để search top_k gần nhất:
-      - gemini -> gemini_embeddings
-      - qwen   -> qwen_embeddings
-    """
     table = "gemini_embeddings" if model == "gemini" else "qwen_embeddings"
     conn = get_pg_connection()
     try:
@@ -189,12 +180,6 @@ def search_with_jsonb(
     top_k: int = 10,
     max_rows: int = 10000,
 ) -> List[dict]:
-    """
-    Nếu embedding lưu dạng JSONB:
-    - Load embedding từ DB -> Python list
-    - Tính cosine similarity trong Python
-    - Sort & lấy top_k
-    """
     table = "gemini_embeddings" if model == "gemini" else "qwen_embeddings"
     conn = get_pg_connection()
     try:
@@ -235,12 +220,6 @@ def search_with_opensearch_sparse_jsonb(
     top_k: int = 10,
     max_rows: int = 10000,
 ) -> List[dict]:
-    """Search cho sparse embedding lưu JSONB (token -> weight).
-
-    - Load embedding sparse từ bảng opensearch_sparse_embeddings
-    - Tính inner product giữa query_emb và document_emb (dict)
-    - Sort và lấy top_k
-    """
     table = "opensearch_sparse_embeddings"
     conn = get_pg_connection()
     try:
@@ -288,12 +267,6 @@ def search_top_k(
     query_text: str,
     top_k: int = 10,
 ):
-    """Thực hiện search top_k cho một câu query.
-
-    - model: "gemini", "qwen" hoặc "opensearch_sparse"
-    - query_text: câu test
-    - top_k: số dòng muốn lấy
-    """
     logging.info(f"Search using model={model}, top_k={top_k}")
     logging.info(f"Query: {query_text}")
 

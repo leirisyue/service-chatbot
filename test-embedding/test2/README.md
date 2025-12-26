@@ -18,6 +18,6 @@ python embed_test_with_logging_and_db_batch.py --table MD_Material_SAP_CP --limi
 
 psql -U postgres -d db_vector -f pgvector.sql   
 
-python test_search_accuracy.py --model gemini --query "câu test của bạn" --top_k 10
-python test_search_accuracy.py --model qwen --query "câu test của bạn" --top_k 10
-python test_search_accuracy.py --model opensearch_sparse --query "câu test của bạn" --top_k 10
+python test_search_accuracy.py --model gemini --query "GỖ" --top_k 10
+python test_search_accuracy.py --model qwen --query "GỖ" --top_k 10
+python test_search_accuracy.py --model opensearch_sparse --query "GỖ" --top_k 10
