@@ -42,8 +42,8 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
     
     context_info = ""
     if context.get("current_products"):
-        products_qwen = context["current_products"]
-        context_info = f"\nCONTEXT (User vừa xem): {len(products_qwen)} sản phẩm. SP đầu tiên: {products_qwen[0]['headcode']} - {products_qwen[0]['product_name']}"
+        products = context["current_products"]
+        context_info = f"\nCONTEXT (User vừa xem): {len(products)} sản phẩm. SP đầu tiên: {products[0]['headcode']} - {products[0]['product_name']}"
     elif context.get("current_materials"):
         materials = context["current_materials"]
         context_info = f"\nCONTEXT (User vừa xem): {len(materials)} vật liệu. VL đầu tiên: {materials[0]['material_name']}"
@@ -176,9 +176,9 @@ def search_products(params: Dict):
     # TIER 1: Thử Hybrid trước
     try:
         result = search_products_hybrid(params)
-        if result.get("products_qwen"):
+        if result.get("products"):
             # Cập nhật total_cost cho các sản phẩm trong hybrid search
-            for product in result["products_qwen"]:
+            for product in result["products"]:
                 product["total_cost"] = calculate_product_total_cost(product["headcode"])
             return result
     except Exception as e:
@@ -219,10 +219,10 @@ def search_products(params: Dict):
         results = cur.fetchall()
         
         if results:
-            print(f"SUCCESS: TIER 2: {len(results)} products_qwen")
-            products_qwen = format_search_results(results[:8])
+            print(f"SUCCESS: TIER 2: {len(results)} products")
+            products = format_search_results(results[:8])
             conn.close()
-            return {"products_qwen": products_qwen, "search_method": "vector_no_filter"}
+            return {"products": products, "search_method": "vector_no_filter"}
     except Exception as e:
         print(f"WARNING: TIER 2 failed: {e}")
     
@@ -239,7 +239,7 @@ def apply_feedback_to_search(items: list, query: str, search_type: str, id_key: 
     - Thêm metadata để UI hiển thị
     
     Args:
-        items: Danh sách products_qwen/materials
+        items: Danh sách products/materials
         query: Câu query gốc
         search_type: "product" hoặc "material"
         id_key: "headcode" hoặc "id_sap"
@@ -345,8 +345,8 @@ def search_products_by_material(material_query: str, params: Dict):
     
     Logic: 
     1. Tìm materials phù hợp với query (vector search)
-    2. JOIN product_materials để lấy products_qwen sử dụng material đó
-    3. Rank products_qwen theo độ phù hợp
+    2. JOIN product_materials để lấy products sử dụng material đó
+    3. Rank products theo độ phù hợp
     """
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
@@ -358,7 +358,7 @@ def search_products_by_material(material_query: str, params: Dict):
     
     if not material_vector:
         conn.close()
-        return {"products_qwen": [], "search_method": "failed"}
+        return {"products": [], "search_method": "failed"}
     
     try:
         # Tìm top materials phù hợp
@@ -378,14 +378,14 @@ def search_products_by_material(material_query: str, params: Dict):
         
         if not matched_materials:
             conn.close()
-            return {"products_qwen": [], "search_method": "no_materials_found"}
+            return {"products": [], "search_method": "no_materials_found"}
         
         material_ids = [m['id_sap'] for m in matched_materials]
         material_names = [m['material_name'] for m in matched_materials]
         
         print(f"SUCCESS: Found {len(material_ids)} matching materials: {material_names[:3]}")
         
-        # Bước 2: Tìm products_qwen sử dụng materials này
+        # Bước 2: Tìm products sử dụng materials này
         # Kết hợp filter category nếu có
         category_filter = ""
         filter_params = []
@@ -422,12 +422,12 @@ def search_products_by_material(material_query: str, params: Dict):
         
         if not results:
             return {
-                "products_qwen": [],
+                "products": [],
                 "search_method": "cross_table_no_products",
                 "matched_materials": material_names
             }
         
-        # Group products_qwen (vì 1 product có thể dùng nhiều materials)
+        # Group products (vì 1 product có thể dùng nhiều materials)
         products_dict = {}
         for row in results:
             headcode = row['headcode']
@@ -456,10 +456,10 @@ def search_products_by_material(material_query: str, params: Dict):
             reverse=True
         )
         
-        print(f"SUCCESS: Found {len(products_list)} products_qwen using these materials")
+        print(f"SUCCESS: Found {len(products_list)} products using these materials")
         
         return {
-            "products_qwen": products_list[:10],
+            "products": products_list[:10],
             "search_method": "cross_table_material_to_product",
             "matched_materials": material_names,
             "explanation": f"Tìm thấy sản phẩm sử dụng: {', '.join(material_names[:3])}"
@@ -468,7 +468,7 @@ def search_products_by_material(material_query: str, params: Dict):
     except Exception as e:
         print(f"ERROR: Cross-table search failed: {e}")
         conn.close()
-        return {"products_qwen": [], "search_method": "cross_table_error"}
+        return {"products": [], "search_method": "cross_table_error"}
 
 
 def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = 0.7) -> Dict:
@@ -983,7 +983,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
             pm.quantity,
             pm.unit
         FROM product_materials pm
-        INNER JOIN products_qwen p ON pm.product_headcode = p.headcode
+        INNER JOIN products p ON pm.product_headcode = p.headcode
         WHERE pm.material_id_sap = %s
         ORDER BY p.product_name ASC
         LIMIT 20
@@ -992,7 +992,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     try:
         cur.execute(sql, (material['id_sap'],))
         used_in_products = cur.fetchall()
-        print(f"INFO: Material {material['id_sap']} used in {len(used_in_products)} products_qwen")
+        print(f"INFO: Material {material['id_sap']} used in {len(used_in_products)} products")
     except Exception as e:
         print(f"ERROR: Query error: {e}")
         used_in_products = []
@@ -1004,7 +1004,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
                 COUNT(DISTINCT p.project) as project_count,
                 SUM(pm.quantity) as total_quantity
             FROM product_materials pm
-            LEFT JOIN products_qwen p ON pm.product_headcode = p.headcode
+            LEFT JOIN products p ON pm.product_headcode = p.headcode
             WHERE pm.material_id_sap = %s
         """, (material['id_sap'],))
         stats = cur.fetchone()
@@ -1192,22 +1192,22 @@ def chat(msg: ChatMessage):
         elif intent == "search_product":
             search_result = search_products(params)
             # print(f"🔍 Search result: {search_result}")
-            products_qwen = search_result.get("products_qwen", [])
+            products = search_result.get("products", [])
             
             # ✅ THÊM: Áp dụng feedback ranking
-            products_qwen = apply_feedback_to_search(
-                products_qwen, 
+            products = apply_feedback_to_search(
+                products, 
                 user_message,
                 search_type="product",
                 id_key="headcode"
             )
             
             # ✅ THÊM: Lấy ranking summary
-            ranking_summary = get_ranking_summary(products_qwen)
+            ranking_summary = get_ranking_summary(products)
             
-            result_count = len(products_qwen)
+            result_count = len(products)
             
-            if not products_qwen:
+            if not products:
                 result_response = {"response": search_result.get("response", "Không tìm thấy sản phẩm.")}
             else:
                 response_text = ""
@@ -1216,26 +1216,26 @@ def chat(msg: ChatMessage):
                 if intent_data.get("is_broad_query"):
                     follow_up = intent_data.get("follow_up_question", "Bạn muốn tìm loại cụ thể nào?")
                     response_text = (
-                        f"🔎 Tìm thấy **{len(products_qwen)} sản phẩm** phù hợp với từ khóa chung.\n"
+                        f"🔎 Tìm thấy **{len(products)} sản phẩm** phù hợp với từ khóa chung.\n"
                         f"*(Tôi đã chọn lọc các mẫu phổ biến nhất bên dưới)*\n\n"
                         f"💡 **Gợi ý:** {follow_up}"
                     )
                     actions = intent_data.get("suggested_actions", [])
                     suggested_prompts = [f"🔍 {a}" for a in actions] if actions else []
                 else:
-                    response_text = f"✅ Đã tìm thấy **{len(products_qwen)} sản phẩm** đúng yêu cầu của bạn."
+                    response_text = f"✅ Đã tìm thấy **{len(products)} sản phẩm** đúng yêu cầu của bạn."
                     
                     # ✅ THÊM: Hiển thị thông tin ranking nếu có
                     if ranking_summary['ranking_applied']:
                         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} sản phẩm** được ưu tiên dựa trên lịch sử tìm kiếm."
                     
                     suggested_prompts = [
-                        f"💰 Tính chi phí {products_qwen[0]['headcode']}",
-                        f"📋 Xem vật liệu {products_qwen[0]['headcode']}"
+                        f"💰 Tính chi phí {products[0]['headcode']}",
+                        f"📋 Xem vật liệu {products[0]['headcode']}"
                     ]
                 result_response = {
                     "response": response_text,
-                    "products_qwen": products_qwen,
+                    "products": products,
                     "suggested_prompts": suggested_prompts,
                     "ranking_summary": ranking_summary,  # ✅ THÊM
                     "can_provide_feedback": True  # ✅ THÊM
@@ -1255,15 +1255,15 @@ def chat(msg: ChatMessage):
                 }
             else:
                 search_result = search_products_by_material(material_query, params)
-                products_qwen = search_result.get("products_qwen", [])
+                products = search_result.get("products", [])
                 
                 feedback_scores = get_feedback_boost_for_query(user_message, "product")
                 if feedback_scores:
-                    products_qwen = rerank_with_feedback(products_qwen, feedback_scores, "headcode")
+                    products = rerank_with_feedback(products, feedback_scores, "headcode")
                 
-                result_count = len(products_qwen)
+                result_count = len(products)
                 
-                if not products_qwen:
+                if not products:
                     matched_mats = search_result.get("matched_materials", [])
                     result_response = {
                         "response": f"🔍 Đã tìm thấy vật liệu: **{', '.join(matched_mats)}**\n\n"
@@ -1274,11 +1274,11 @@ def chat(msg: ChatMessage):
                 else:
                     explanation = search_result.get("explanation", "")
                     response_text = f"✅ {explanation}\n\n"
-                    response_text += f"📦 Tìm thấy **{len(products_qwen)} sản phẩm**:"
+                    response_text += f"📦 Tìm thấy **{len(products)} sản phẩm**:"
                     
                     result_response = {
                         "response": response_text,
-                        "products_qwen": products_qwen,
+                        "products": products,
                         "search_method": "cross_table",
                         "can_provide_feedback": True
                     }
@@ -1428,7 +1428,7 @@ def chat(msg: ChatMessage):
                 keywords = extract_product_keywords(params["keywords_vector"])
                 
         print(f"SUCCESS => Final response: {result_response.get('materials', '')}, count: {result_count}")
-        listProducts = listProducts or result_response.get("products_qwen", []) or result_response.get("materials", [])
+        listProducts = listProducts or result_response.get("products", []) or result_response.get("materials", [])
         # Save chat history
         histories.save_chat_to_histories(
             email="test@gmail.com",

@@ -13,7 +13,7 @@ from PIL import Image
 from psycopg2.extras import RealDictCursor
 
 from .textfunc import call_gemini_with_retry
-from .textapi_qwen import search_products
+from .textapi import search_products
 from config import settings
 
 def get_db():
@@ -187,8 +187,6 @@ async def search_by_image(
         prompt = """
         Đóng vai chuyên gia kỹ thuật AA Corporation.
         Phân tích ảnh nội thất này để trích xuất thông tin tìm kiếm Database.
-        Phân tích chi tiết về hình dáng, vật liệu, màu sắc, phong cách thiết kế.
-        Trả lời như một chuyên viên bán hàng chuyên nghiệp.
         
         OUTPUT JSON ONLY (no markdown, no backticks):
         {
@@ -286,7 +284,7 @@ def classify_pending_products():
         # Lấy sản phẩm chưa phân loại
         cur.execute("""
             SELECT headcode, id_sap, product_name 
-            FROM products_qwen 
+            FROM products_sparse 
             WHERE category = 'Chưa phân loại' 
                OR sub_category = 'Chưa phân loại'
                OR material_primary = 'Chưa xác định'
@@ -329,7 +327,7 @@ def classify_pending_products():
                 for j, result in enumerate(results):
                     try:
                         cur.execute("""
-                            UPDATE products_qwen 
+                            UPDATE products 
                             SET category = %s,
                                 sub_category = %s,
                                 material_primary = %s,
@@ -361,7 +359,7 @@ def classify_pending_products():
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT COUNT(*) FROM products_qwen 
+            SELECT COUNT(*) FROM products_sparse 
             WHERE category = 'Chưa phân loại' 
             OR sub_category = 'Chưa phân loại'
             OR material_primary = 'Chưa xác định'
@@ -396,7 +394,7 @@ def classify_pending_materials():
         
         cur.execute("""
             SELECT id_sap, material_name, material_group
-            FROM materials 
+            FROM materials_sparse 
             WHERE material_subgroup = 'Chưa phân loại'
             LIMIT 100
         """)
@@ -461,7 +459,7 @@ def classify_pending_materials():
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT COUNT(*) FROM materials 
+            SELECT COUNT(*) FROM materials_sparse 
             WHERE material_subgroup = 'Chưa phân loại'
         """)
         remaining = cur.fetchone()[0]

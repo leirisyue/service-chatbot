@@ -14,7 +14,7 @@ import pandas as pd
 import io
 import psycopg2
 from config import settings
-from .embeddingapi import generate_embedding_qwen
+from .embeddingapi import generate_sparse_embedding
 
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
@@ -179,7 +179,7 @@ def search_materials_for_product(product_query: str, params: Dict):
     print(f"INFO: Cross-table search: Materials for '{product_query}'")
     
     # Bước 1: Tìm products phù hợp
-    product_vector = generate_embedding_qwen(product_query)
+    product_vector = generate_sparse_embedding(product_query)
     
     if not product_vector:
         conn.close()
@@ -192,7 +192,7 @@ def search_materials_for_product(product_query: str, params: Dict):
                 product_name,
                 category,
                 (description_embedding <=> %s::vector) as distance
-            FROM products_qwen
+            FROM products_sparse
             WHERE description_embedding IS NOT NULL
             ORDER BY distance ASC
             LIMIT 10
@@ -229,7 +229,7 @@ def search_materials_for_product(product_query: str, params: Dict):
                 COUNT(DISTINCT pm.product_headcode) as usage_count,
                 SUM(pm.quantity) as total_quantity,
                 array_agg(DISTINCT p.product_name) as used_in_products
-            FROM materials m
+            FROM materials_sparse m
             INNER JOIN product_materials pm ON m.id_sap = pm.material_id_sap
             INNER JOIN products p ON pm.product_headcode = p.headcode
             WHERE p.headcode = ANY(%s)
@@ -383,7 +383,7 @@ def search_products_hybrid(params: Dict):
     keywords = extract_product_keywords(expanded)
     
     # 4. Vector
-    vector = generate_embedding_qwen(expanded)
+    vector = generate_sparse_embedding(expanded)
     if not vector:
         conn.close()
         return {"products": [], "search_method": "failed"}
@@ -408,7 +408,7 @@ def search_products_hybrid(params: Dict):
                    material_primary, project, project_id,
                    (description_embedding <=> %s::vector) as raw_distance,
                    {boost} as keyword_match
-            FROM products_qwen
+            FROM products_sparse
             WHERE description_embedding IS NOT NULL
             ORDER BY (description_embedding <=> %s::vector) - ({boost} * 0.25) ASC
             LIMIT 10
@@ -510,9 +510,9 @@ def search_products_keyword_only(params: Dict):
     
     if conditions:
         where_clause = " OR ".join(conditions)
-        sql = f"SELECT * FROM products_qwen WHERE {where_clause} LIMIT 12"
+        sql = f"SELECT * FROM products_sparse WHERE {where_clause} LIMIT 12"
     else:
-        sql = "SELECT * FROM products_qwen ORDER BY RANDOM() LIMIT 10"
+        sql = "SELECT * FROM products_sparse ORDER BY RANDOM() LIMIT 10"
         values = []
     
     try:

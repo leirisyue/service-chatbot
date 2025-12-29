@@ -8,7 +8,7 @@ from config import settings
 from fastapi import APIRouter, HTTPException, Request
 from psycopg2.extras import RealDictCursor
 from chatapi.unit import FeedbackRequest
-from chatapi.embeddingapi import generate_embedding_qwen
+from chatapi.embeddingapi import generate_sparse_embedding
 
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
@@ -34,7 +34,7 @@ def save_user_feedback(session_id: str, query: str, selected_items: list, reject
         cur = conn.cursor()
         
         # TẠO EMBEDDING CHO QUERY NGAY KHI LƯU
-        query_embedding = generate_embedding_qwen(query)
+        query_embedding = generate_sparse_embedding(query)
         
         if not query_embedding:
             print("WARNING: Không tạo được embedding, vẫn lưu feedback")

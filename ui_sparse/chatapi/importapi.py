@@ -88,7 +88,7 @@ async def import_products(file: UploadFile = File(...)):
                 project_id = str(row.get('project_id', '')).strip() if pd.notna(row.get('project_id')) else None
                 
                 sql = """
-                    INSERT INTO products_qwen (
+                    INSERT INTO products (
                         headcode, id_sap, product_name, 
                         category, sub_category, material_primary,
                         unit, project, project_id
@@ -123,7 +123,7 @@ async def import_products(file: UploadFile = File(...)):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT COUNT(*) FROM products_qwen 
+            SELECT COUNT(*) FROM products_sparse 
             WHERE category = 'Chưa phân loại' 
             OR sub_category = 'Chưa phân loại'
             OR material_primary = 'Chưa xác định'
@@ -232,7 +232,7 @@ async def import_materials(file: UploadFile = File(...)):
         conn = get_db()
         cur = conn.cursor()
         cur.execute("""
-            SELECT COUNT(*) FROM materials 
+            SELECT COUNT(*) FROM materials_sparse 
             WHERE material_subgroup = 'Chưa phân loại'
         """)
         pending_count = cur.fetchone()[0]
@@ -287,10 +287,10 @@ async def import_product_materials(file: UploadFile = File(...)):
         errors = []
         
         # Pre-load dữ liệu để check nhanh
-        cur.execute("SELECT headcode FROM products_qwen")
+        cur.execute("SELECT headcode FROM products_sparse")
         existing_products = {row[0] for row in cur.fetchall()}
         
-        cur.execute("SELECT id_sap FROM materials")
+        cur.execute("SELECT id_sap FROM materials_sparse")
         existing_materials = {row[0] for row in cur.fetchall()}
 
         # Hàm làm sạch ID
