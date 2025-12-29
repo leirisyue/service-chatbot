@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ProductCard from './ProductCard';
 import MaterialCard from './MaterialCard';
 import Grid from '@mui/material/Grid';
 import Box from '@mui/material/Box';
 import { formatTimestamp } from '../../utils/helpers';
+
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -11,85 +12,122 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import { schemaMarkdown } from '../../utils/mardownhtml';
 
-
 function Message({ message, onSendMessage }) {
   const isUser = message.role === 'user';
 
-  // Handle click for material button
+  const [displayedText, setDisplayedText] = useState(message.content || "");
+  const [typingDone, setTypingDone] = useState(true);
+
+  const hasMountedRef = useRef(false);
+  const bottomRef = useRef(null);
+
+  /* =========================
+      TYPING EFFECT
+  ========================= */
+  useEffect(() => {
+    if (isUser || typeof message.content !== 'string') {
+      setDisplayedText(message.content);
+      setTypingDone(true);
+      hasMountedRef.current = true;
+      return;
+    }
+
+    // render lần đầu (reload / history)
+    if (!hasMountedRef.current) {
+      setDisplayedText(message.content);
+      setTypingDone(true);
+      hasMountedRef.current = true;
+      return;
+    }
+
+    // message mới → typing
+    setDisplayedText("");
+    setTypingDone(false);
+
+    let index = 0;
+    const text = message.content;
+
+    const interval = setInterval(() => {
+      setDisplayedText((prev) => prev + text.charAt(index));
+      index++;
+
+      if (index >= text.length) {
+        clearInterval(interval);
+        setTypingDone(true);
+      }
+    }, 15);
+
+    return () => clearInterval(interval);
+
+  }, [message.content, message.timestamp, isUser]);
+
+  /* =========================
+      AUTO SCROLL THEO TYPING
+  ========================= */
+  useEffect(() => {
+    if (!bottomRef.current) return;
+
+    bottomRef.current.scrollIntoView({
+      behavior: 'smooth',
+      block: 'end',
+    });
+  }, [displayedText]);
+
+  /* =========================
+      ACTION HANDLERS
+  ========================= */
   const handleMaterialClick = (headcode) => {
-    if (onSendMessage) {
-      onSendMessage(`Phân tích nguyên vật liệu sản phẩm ${headcode}`);
-    }
+    onSendMessage?.(`Phân tích nguyên vật liệu sản phẩm ${headcode}`);
   };
 
-  // Handle click for price button
   const handlePriceClick = (headcode) => {
-    if (onSendMessage) {
-      onSendMessage(`Tính chi phí sản phẩm ${headcode}`);
-    }
+    onSendMessage?.(`Tính chi phí sản phẩm ${headcode}`);
   };
 
-  // Handle click for material detail button
   const handleMaterialDetailClick = (materialName) => {
-    if (onSendMessage) {
-      onSendMessage(`Chi tiết vật liệu ${materialName}`);
-    }
+    onSendMessage?.(`Chi tiết vật liệu ${materialName}`);
   };
-  const firstMessageTimestamp = message[0]?.timestamp;
 
-  const renderContent = () => {
-    // if (typeof message.content === 'string') {
-    //   return message.content.split('\n').map((line, i) => (
-    //     <React.Fragment key={i}>
-    //       {line}
-    //       {i < message.content.split('\n').length - 1 && <br />}
-    //     </React.Fragment>
-    //   ));
-    // }
-    // return message.content;
-
-    return (
-      <div className={message.type === 'welcome' ? 'welcome-md' : ''}>
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks]}
-          rehypePlugins={[
-            rehypeRaw,
-            [rehypeSanitize, schemaMarkdown],
-          ]}
-        >
-          {message.content}
-        </ReactMarkdown>
-      </div>
-    );
-  };
+  const renderContent = () => (
+    <div className={message.type === 'welcome' ? 'welcome-md' : ''}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[
+          rehypeRaw,
+          [rehypeSanitize, schemaMarkdown],
+        ]}
+      >
+        {displayedText}
+      </ReactMarkdown>
+    </div>
+  );
 
   return (
     <div className={`message ${isUser ? 'user-message' : 'bot-message'}`}>
       <div className="message-avatar">
         {isUser ? '👤' : '🤖'}
       </div>
+
       <div className="message-content">
         <div className="message-text">
-          <div style={{ paddingBottom: '15px' }}>{formatTimestamp(message?.timestamp)}</div>
-          {/* Hiển thị ảnh nếu có */}
-          {message.imageUrl && (
-            <div className="message-image">
-              <img src={message.imageUrl} alt="Uploaded" />
-            </div>
-          )}
+          <div style={{ paddingBottom: '15px' }}>
+            {formatTimestamp(message?.timestamp)}
+          </div>
           {renderContent()}
+          <div ref={bottomRef} />
         </div>
 
-        {/* Hiển thị sản phẩm */}
-        {!isUser && message.data?.products && (
-          <div className="products-section">
-            <h3>📦 Kết quả tìm kiếm sản phẩm ({message?.data?.products?.length} sản phẩm)</h3>
+        {/* PRODUCTS */}
+        {!isUser && typingDone && message.data?.products && (
+          <div className="products-section fade-in">
+            <h3>
+              📦 Kết quả tìm kiếm sản phẩm ({message.data.products.length})
+            </h3>
             <Grid container spacing={2}>
               {message.data.products.slice(0, 9).map((product, index) => (
-                <Grid size={{ xs: 12, md: 6 }}>
+                <Grid key={index} size={{ xs: 12, md: 6 }}>
                   <Box sx={{ height: '100%' }}>
                     <ProductCard
-                      key={index}
                       product={product}
                       onMaterialClick={() => handleMaterialClick(product.headcode)}
                       onPriceClick={() => handlePriceClick(product.headcode)}
@@ -101,40 +139,23 @@ function Message({ message, onSendMessage }) {
           </div>
         )}
 
-        {/* Hiển thị vật liệu */}
-        {!isUser && message.data?.materials && (
-          <div className="materials-section">
-            {message.data.materials.length > 0 &&
-              <div style={{ paddingBottom: '15px', fontWeight: '600' }}>
-                🧱 Kết quả tìm kiếm nguyên vật liệu ({message.data.materials.length} vật liệu)
-              </div>
-            }
-            {message.data.materials.length === 0 &&
-              <div style={{ paddingBottom: '15px', fontStyle: 'italic' }}>
-                Không tìm thấy nguyên vật liệu phù hợp.
-              </div>
-            }
+        {/* MATERIALS */}
+        {!isUser && typingDone && message.data?.materials && (
+          <div className="materials-section fade-in">
             <Grid container spacing={2}>
               {message.data.materials.slice(0, 9).map((material, index) => (
-                <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+                <Grid key={index} size={{ xs: 12, md: 6, lg: 4 }}>
                   <Box sx={{ height: '100%' }}>
                     <MaterialCard
-                      key={index}
                       material={material}
-                      onDetailClick={() => handleMaterialDetailClick(material.material_name)}
+                      onDetailClick={() =>
+                        handleMaterialDetailClick(material.material_name)
+                      }
                     />
                   </Box>
                 </Grid>
               ))}
             </Grid>
-          </div>
-        )}
-
-        {/* Hiển thị chi tiết vật liệu */}
-        {!isUser && message.data?.material_detail && (
-          <div className="material-detail-section">
-            <h3>🧱 Chi tiết nguyên vật liệu</h3>
-            {/* Thêm chi tiết vật liệu ở đây */}
           </div>
         )}
       </div>

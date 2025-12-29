@@ -1,4 +1,3 @@
-// MediaImage.jsx
 import React, { useEffect, useState } from "react";
 import { createMedia } from "../../services/api";
 

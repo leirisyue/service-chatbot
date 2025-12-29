@@ -10,14 +10,13 @@ function ProductCard({ product, onMaterialClick, onPriceClick }) {
       </div>
 
       <div className="product-details">
-        <p>📦 {product.category || 'N/A'} - {product.sub_category || 'N/A'}</p>
-        <p>🪵 {product.material_primary || 'N/A'}</p>
+        <p>📦 {product.category || ''} - {product.sub_category || ''}</p>
+        <p>🪵 {product.material_primary || ''}</p>
         {!!product.project && <p style={{whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          width: '100%'}}>🗂️  Dự án: {product.project}</p>}
+          width: '100%'}}>🗂️ Dự án: {product.project}</p>}
       </div>
-
       <div className="product-actions" style={{ position: 'absolute', width: '90%', bottom: '15px' }}>
         <button
           className="btn-material"

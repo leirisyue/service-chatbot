@@ -41,20 +41,20 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
         materials_text += f"{i}. ID: {mat['id_sap']}, Tên: {mat['name']}\n"
     
     prompt = f"""
-Phân loại {len(materials_batch)} nguyên vật liệu nội thất:
+                Phân loại {len(materials_batch)} nguyên vật liệu nội thất:
 
-{materials_text}
+                {materials_text}
 
-Xác định:
-1. material_group: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
-2. material_subgroup: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp")
+                Xác định:
+                1. material_group: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
+                2. material_subgroup: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp")
 
-OUTPUT JSON ARRAY ONLY:
-[
-  {{"id_sap": "M001", "material_group": "...", "material_subgroup": "..."}},
-  {{"id_sap": "M002", "material_group": "...", "material_subgroup": "..."}}
-]
-"""
+                OUTPUT JSON ARRAY ONLY:
+                [
+                {{"id_sap": "M001", "material_group": "...", "material_subgroup": "..."}},
+                {{"id_sap": "M002", "material_group": "...", "material_subgroup": "..."}}
+                ]
+        """
     
     # Gọi Gemini với retry
     response_text = call_gemini_with_retry(model, prompt, max_retries=3)
@@ -109,23 +109,23 @@ def batch_classify_products(products_batch: List[Dict]) -> List[Dict]:
         products_text += f"{i}. ID: {prod['id_sap']}, Tên: {prod['name']}\n"
     
     prompt = f"""
-Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
+                Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
 
-Phân loại {len(products_batch)} sản phẩm sau:
+                Phân loại {len(products_batch)} sản phẩm sau:
 
-{products_text}
+                {products_text}
 
-Mỗi sản phẩm cần phân loại theo:
-1. category: Bàn, Ghế, Sofa, Tủ, Giường, Đèn, Kệ, Bàn làm việc, Khác
-2. sub_category: Danh mục phụ cụ thể (VD: "Bàn ăn", "Ghế bar", "Sofa góc"...)
-3. material_primary: Gỗ, Da, Vải, Kim loại, Đá, Kính, Nhựa, Mây tre, Hỗn hợp
+                Mỗi sản phẩm cần phân loại theo:
+                1. category: Bàn, Ghế, Sofa, Tủ, Giường, Đèn, Kệ, Bàn làm việc, Khác
+                2. sub_category: Danh mục phụ cụ thể (VD: "Bàn ăn", "Ghế bar", "Sofa góc"...)
+                3. material_primary: Gỗ, Da, Vải, Kim loại, Đá, Kính, Nhựa, Mây tre, Hỗn hợp
 
-OUTPUT JSON ARRAY ONLY (no markdown, no backticks):
-[
-  {{"id_sap": "SP001", "category": "...", "sub_category": "...", "material_primary": "..."}},
-  {{"id_sap": "SP002", "category": "...", "sub_category": "...", "material_primary": "..."}}
-]
-"""
+                OUTPUT JSON ARRAY ONLY (no markdown, no backticks):
+                [
+                {{"id_sap": "SP001", "category": "...", "sub_category": "...", "material_primary": "..."}},
+                {{"id_sap": "SP002", "category": "...", "sub_category": "...", "material_primary": "..."}}
+                ]
+        """
     
     # Gọi AI với retry logic
     response_text = call_gemini_with_retry(model, prompt, max_retries=3)
@@ -190,10 +190,10 @@ async def search_by_image(
         
         OUTPUT JSON ONLY (no markdown, no backticks):
         {
-          "category": "Loại SP (Bàn, Ghế, Sofa...)",
-          "visual_description": "Mô tả chi tiết kỹ thuật dùng cho Vector Search",
-          "material_detected": "Vật liệu chính (Gỗ, Da, Vải, Đá...)",
-          "color_tone": "Màu chủ đạo"
+            "category": "Loại SP (Bàn, Ghế, Sofa...)",
+            "visual_description": "Mô tả chi tiết kỹ thuật dùng cho Vector Search",
+            "material_detected": "Vật liệu chính (Gỗ, Da, Vải, Đá...)",
+            "color_tone": "Màu chủ đạo"
         }
         """
         
@@ -286,8 +286,8 @@ def classify_pending_products():
             SELECT headcode, id_sap, product_name 
             FROM products_gemi 
             WHERE category = 'Chưa phân loại' 
-               OR sub_category = 'Chưa phân loại'
-               OR material_primary = 'Chưa xác định'
+                OR sub_category = 'Chưa phân loại'
+                OR material_primary = 'Chưa xác định'
             LIMIT 100
         """)
         

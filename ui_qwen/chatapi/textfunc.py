@@ -22,18 +22,18 @@ def get_db():
 def extract_product_keywords(query: str) -> list:
     """Trích xuất từ khóa quan trọng"""
     materials = ["gỗ teak", "gỗ sồi", "gỗ walnut", "đá marble", "đá granite", 
-                 "da thật", "da bò", "vải linen", "kim loại", "teak", "oak", 
-                 "walnut", "marble", "granite", "leather"]
+                    "da thật", "da bò", "vải linen", "kim loại", "teak", "oak", 
+                    "walnut", "marble", "granite", "leather"]
     
     contexts = ["nhà bếp", "phòng khách", "phòng ngủ", "văn phòng",
                 "kitchen", "living room", "dining", "coffee", "bar",
                 "bàn ăn", "bàn trà", "bàn làm việc"]
     
     shapes = ["tròn", "vuông", "chữ nhật", "oval", "l-shape", 
-              "round", "square", "rectangular"]
+                "round", "square", "rectangular"]
     
     types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn",
-             "table", "chair", "cabinet", "bed", "shelf", "lamp"]
+                "table", "chair", "cabinet", "bed", "shelf", "lamp"]
     
     query_lower = query.lower()
     keywords = []
@@ -53,46 +53,40 @@ def auto_classify_product(product_name: str, id_sap: str = "") -> Dict:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     prompt = f"""
-Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
-
-INPUT:
-- Tên sản phẩm: "{product_name}"
-- Mã SAP: "{id_sap}"
-
-NHIỆM VỤ: Phân tích và phân loại sản phẩm theo 3 tiêu chí:
-
-1. **category** (Danh mục chính):
-   - Bàn (Table)
-   - Ghế (Chair) 
-   - Sofa
-   - Tủ (Cabinet)
-   - Giường (Bed)
-   - Đèn (Lamp)
-   - Kệ (Shelf)
-   - Bàn làm việc (Desk)
-   - Khác (Other)
-
-2. **sub_category** (Danh mục phụ - cụ thể hơn):
-   VD: "Bàn ăn", "Bàn coffee", "Ghế bar", "Ghế ăn", "Sofa góc", "Tủ quần áo", "Đèn bàn", "Đèn trần"...
-
-3. **material_primary** (Vật liệu chính):
-   - Gỗ (Wood)
-   - Da (Leather)
-   - Vải (Fabric)
-   - Kim loại (Metal)
-   - Đá (Stone)
-   - Kính (Glass)
-   - Nhựa (Plastic)
-   - Mây tre (Rattan)
-   - Hỗn hợp (Mixed)
-
-OUTPUT JSON ONLY (no markdown, no backticks):
-{{
-  "category": "...",
-  "sub_category": "...",
-  "material_primary": "..."
-}}
-"""
+                Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
+                INPUT:
+                - Tên sản phẩm: "{product_name}"
+                - Mã SAP: "{id_sap}"
+                NHIỆM VỤ: Phân tích và phân loại sản phẩm theo 3 tiêu chí:
+                1. **category** (Danh mục chính):
+                - Bàn (Table)
+                - Ghế (Chair) 
+                - Sofa
+                - Tủ (Cabinet)
+                - Giường (Bed)
+                - Đèn (Lamp)
+                - Kệ (Shelf)
+                - Bàn làm việc (Desk)
+                - Khác (Other)
+                2. **sub_category** (Danh mục phụ - cụ thể hơn):
+                VD: "Bàn ăn", "Bàn coffee", "Ghế bar", "Ghế ăn", "Sofa góc", "Tủ quần áo", "Đèn bàn", "Đèn trần"...
+                3. **material_primary** (Vật liệu chính):
+                - Gỗ (Wood)
+                - Da (Leather)
+                - Vải (Fabric)
+                - Kim loại (Metal)
+                - Đá (Stone)
+                - Kính (Glass)
+                - Nhựa (Plastic)
+                - Mây tre (Rattan)
+                - Hỗn hợp (Mixed)
+                OUTPUT JSON ONLY (no markdown, no backticks):
+                {{
+                "category": "...",
+                "sub_category": "...",
+                "material_primary": "..."
+                }}
+        """
     
     response_text = call_gemini_with_retry(model, prompt)
     
@@ -124,21 +118,18 @@ def auto_classify_material(material_name: str, id_sap: str = "") -> Dict:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     prompt = f"""
-Phân loại nguyên vật liệu nội thất:
-
-Tên: "{material_name}"
-Mã: "{id_sap}"
-
-Xác định:
-1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
-2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
-
-OUTPUT JSON ONLY:
-{{
-  "material_group": "...",
-  "material_subgroup": "..."
-}}
-"""
+                Phân loại nguyên vật liệu nội thất:
+                Tên: "{material_name}"
+                Mã: "{id_sap}"
+                Xác định:
+                1. **material_group**: Gỗ, Da, Vải, Đá, Kim loại, Kính, Nhựa, Sơn, Keo, Phụ kiện, Khác
+                2. **material_subgroup**: Nhóm con cụ thể (VD: "Gỗ tự nhiên", "Da thật", "Vải cao cấp"...)
+                OUTPUT JSON ONLY:
+                {{
+                    "material_group": "...",
+                    "material_subgroup": "..."
+                }}
+        """
     
     response_text = call_gemini_with_retry(model, prompt)
     
@@ -235,7 +226,7 @@ def search_materials_for_product(product_query: str, params: Dict):
             WHERE p.headcode = ANY(%s)
             {material_filter}
             GROUP BY m.id_sap, m.material_name, m.material_group, 
-                     m.material_subgroup, m.material_subprice, m.unit, m.image_url
+                    m.material_subgroup, m.material_subprice, m.unit, m.image_url
             ORDER BY usage_count DESC, m.material_name ASC
             LIMIT 15
         """
@@ -405,9 +396,9 @@ def search_products_hybrid(params: Dict):
         
         sql = f"""
             SELECT headcode, product_name, category, sub_category, 
-                   material_primary, project, project_id,
-                   (description_embedding <=> %s::vector) as raw_distance,
-                   {boost} as keyword_match
+                    material_primary, project, project_id,
+                    (description_embedding <=> %s::vector) as raw_distance,
+                    {boost} as keyword_match
             FROM products_qwen
             WHERE description_embedding IS NOT NULL
             ORDER BY (description_embedding <=> %s::vector) - ({boost} * 0.25) ASC
@@ -449,17 +440,17 @@ def expand_search_query(user_query: str, params: Dict) -> str:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     prompt = f"""
-Người dùng tìm: "{user_query}"
+            Người dùng tìm: "{user_query}"
 
-Tạo mô tả tìm kiếm tối ưu (2-3 câu ngắn):
-1. LOẠI SẢN PHẨM (bàn/ghế/tủ...)
-2. VẬT LIỆU CỤ THỂ (gỗ teak/đá marble/da bò...)
-3. VỊ TRÍ/CÔNG DỤNG (nhà bếp/phòng khách/dining/coffee...)
+            Tạo mô tả tìm kiếm tối ưu (2-3 câu ngắn):
+            1. LOẠI SẢN PHẨM (bàn/ghế/tủ...)
+            2. VẬT LIỆU CỤ THỂ (gỗ teak/đá marble/da bò...)
+            3. VỊ TRÍ/CÔNG DỤNG (nhà bếp/phòng khách/dining/coffee...)
 
-VD: "bàn gỗ teak" -> "Bàn làm từ gỗ teak tự nhiên. Dining table hoặc coffee table chất liệu teak wood cao cấp."
+            VD: "bàn gỗ teak" -> "Bàn làm từ gỗ teak tự nhiên. Dining table hoặc coffee table chất liệu teak wood cao cấp."
 
-Output (chỉ mô tả):
-"""
+            Output (chỉ mô tả):
+        """
     
     try:
         response = call_gemini_with_retry(model, prompt, max_retries=2)

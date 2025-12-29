@@ -111,3 +111,12 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #a1a1a1;
 }
+
+.ellipsis{
+  clear: both;
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap; 
+  text-overflow: ellipsis;
+  width: 100% !important;
+}

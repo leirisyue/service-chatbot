@@ -1,8 +1,9 @@
 import Chip from '@mui/material/Chip';
-import { useAtomValue } from 'jotai/react';
+import { useAtom, useAtomValue } from 'jotai/react';
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import './App.css';
+import { messagesAtom } from './atom/messageAtom';
 import { emailUserAtom } from './atom/variableAtom';
 import ChatContainer from './components/Chat/ChatContainer';
 import ChatInput from './components/Input/ChatInput';
@@ -13,12 +14,13 @@ import { SimpleDialog } from './modal/modal-email-user';
 import { searchByImage, sendMessage } from './services/api';
 import { welcomeMessage } from './utils/variable';
 
+
 function App() {
   const emailUser = useAtomValue(emailUserAtom);
   const [open, setOpen] = useState(false);
 
   const [sessionId, setSessionId] = useState('');
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useAtom(messagesAtom);
   const [context, setContext] = useState({
     last_search_results: [],
     current_products: [],
@@ -246,7 +248,7 @@ function App() {
                 <Chip label="v1.0" />
               </div>
               <div className="sub-title">
-                Trợ Lý AI Thông Minh - Hỗ trợ Báo giá vật tư
+                Chuyên viên AI Thông Minh - Hỗ trợ Báo giá vật tư
               </div>
             </div>
             <ChatContainer

@@ -67,78 +67,78 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
        - **query_material_detail**: Xem chi tiết VẬT LIỆU + sản phẩm sử dụng (VD: "Chi tiết gỗ sồi", "Xem vật liệu này dùng ở đâu")
        - **list_material_groups**: Liệt kê nhóm vật liệu (VD: "Các loại gỗ", "Danh sách đá")
 
-       ----------------------------------------------------------------
+        ----------------------------------------------------------------
        **[NEW] CROSS-TABLE INTENTS (BỔ SUNG – KHÔNG THAY ĐỔI LOGIC CŨ):**
-       - **search_product_by_material**: Tìm sản phẩm LÀM TỪ vật liệu cụ thể
-         Ví dụ: "Tìm bàn làm từ đá marble", "Tủ gỗ teak", "Ghế da thật"
-       
-       - **search_material_for_product**: Tìm vật liệu ĐỂ LÀM sản phẩm cụ thể
-         Ví dụ: "Vật liệu làm bàn tròn", "Nguyên liệu ghế sofa", "Đá làm bàn"
+        - **search_product_by_material**: Tìm sản phẩm LÀM TỪ vật liệu cụ thể
+        Ví dụ: "Tìm bàn làm từ đá marble", "Tủ gỗ teak", "Ghế da thật"
+
+        - **search_material_for_product**: Tìm vật liệu ĐỂ LÀM sản phẩm cụ thể
+        Ví dụ: "Vật liệu làm bàn tròn", "Nguyên liệu ghế sofa", "Đá làm bàn"
 
        **PHÂN BIỆT RÕ (ƯU TIÊN TUÂN THỦ):**
-       - "Tìm bàn gỗ" → search_product
-       - "Tìm bàn LÀM TỪ gỗ teak" → search_product_by_material
-       - "Tìm gỗ" → search_material
-       - "Tìm vật liệu ĐỂ LÀM bàn" → search_material_for_product
-       ----------------------------------------------------------------
-       
-       - **greeting**: Chào hỏi (VD: "Xin chào", "Hello", "Hi")
-       - **unknown**: Không rõ ý định
+        - "Tìm bàn gỗ" → search_product
+        - "Tìm bàn LÀM TỪ gỗ teak" → search_product_by_material
+        - "Tìm gỗ" → search_material
+        - "Tìm vật liệu ĐỂ LÀM bàn" → search_material_for_product
+        ----------------------------------------------------------------
+
+        - **greeting**: Chào hỏi (VD: "Xin chào", "Hello", "Hi")
+        - **unknown**: Không rõ ý định
     
     2. **Entity Type Detection**: 
-       - Phân biệt: User đang nói về SẢN PHẨM hay VẬT LIỆU?
-       - Keyword: "sản phẩm", "bàn", "ghế", "sofa" → PRODUCT
-       - Keyword: "vật liệu", "nguyên liệu", "gỗ", "da", "đá", "vải" → MATERIAL
-       - "giá" + context sản phẩm → calculate_product_cost
-       - "giá" + context vật liệu → query_material_detail
+        - Phân biệt: User đang nói về SẢN PHẨM hay VẬT LIỆU?
+        - Keyword: "sản phẩm", "bàn", "ghế", "sofa" → PRODUCT
+        - Keyword: "vật liệu", "nguyên liệu", "gỗ", "da", "đá", "vải" → MATERIAL
+        - "giá" + context sản phẩm → calculate_product_cost
+        - "giá" + context vật liệu → query_material_detail
     
     3. **Broad Query Detection**: 
-       - Nếu User chỉ nói danh mục lớn (VD: "Tìm bàn", "Ghế", "Đèn", "Tìm gỗ") mà KHÔNG có tính chất cụ thể:
-         -> Set `is_broad_query`: true
-         -> Tạo `follow_up_question`: Một câu hỏi ngắn gợi ý user thu hẹp phạm vi
-       - Nếu User đã cụ thể (VD: "Bàn ăn tròn", "Ghế gỗ sồi", "Đá marble trắng"):
-         -> Set `is_broad_query`: false
-         -> `follow_up_question`: null
+        - Nếu User chỉ nói danh mục lớn (VD: "Tìm bàn", "Ghế", "Đèn", "Tìm gỗ") mà KHÔNG có tính chất cụ thể:
+            -> Set `is_broad_query`: true
+            -> Tạo `follow_up_question`: Ba câu hỏi ngắn gợi ý user thu hẹp phạm vi
+        - Nếu User đã cụ thể (VD: "Bàn ăn tròn", "Ghế gỗ sồi", "Đá marble trắng"):
+            -> Set `is_broad_query`: false
+            -> `follow_up_question`: null
     
     4. **Parameter Extraction**:
        **For PRODUCTS:**
-       - `category`: Danh mục sản phẩm
-       - `sub_category`: Danh mục phụ
-       - `material_primary`: Vật liệu chính
-       - `keywords_vector`: Mô tả đầy đủ để search vector
-       - `headcode`: Mã sản phẩm (nếu có trong INPUT hoặc Context)
-       
+        - `category`: Danh mục sản phẩm
+        - `sub_category`: Danh mục phụ
+        - `material_primary`: Vật liệu chính
+        - `keywords_vector`: Mô tả đầy đủ để search vector
+        - `headcode`: Mã sản phẩm (nếu có trong INPUT hoặc Context)
+
        **For MATERIALS:**
-       - `material_name`: Tên vật liệu (VD: "gỗ sồi", "da thật")
-       - `material_group`: Nhóm vật liệu (VD: "Gỗ", "Da", "Đá", "Vải")
-       - `material_subgroup`: Nhóm con
-       - `keywords_vector`: Mô tả đặc tính để search (VD: "gỗ làm bàn ăn cao cấp màu nâu")
-       - `id_sap`: Mã vật liệu SAP (nếu có)
-       - `usage_context`: Ngữ cảnh sử dụng (VD: "làm bàn", "bọc ghế")
+        - `material_name`: Tên vật liệu (VD: "gỗ sồi", "da thật")
+        - `material_group`: Nhóm vật liệu (VD: "Gỗ", "Da", "Đá", "Vải")
+        - `material_subgroup`: Nhóm con
+        - `keywords_vector`: Mô tả đặc tính để search (VD: "gỗ làm bàn ăn cao cấp màu nâu")
+        - `id_sap`: Mã vật liệu SAP (nếu có)
+        - `usage_context`: Ngữ cảnh sử dụng (VD: "làm bàn", "bọc ghế")
     
     5. **Context Awareness**:
-       - Nếu User dùng từ đại từ ("cái này", "nó", "sản phẩm đó", "vật liệu này"), hãy lấy từ Context
-       - Nếu User hỏi về giá/vật liệu mà không nói rõ, ưu tiên lấy item đầu tiên trong Context
+        - Nếu User dùng từ đại từ ("cái này", "nó", "sản phẩm đó", "vật liệu này"), hãy lấy từ Context
+        - Nếu User hỏi về giá/vật liệu mà không nói rõ, ưu tiên lấy item đầu tiên trong Context
 
     OUTPUT FORMAT (JSON ONLY - no markdown backticks):
     {{
-      "intent": "search_product|search_product_by_material|search_material_for_product|query_product_materials|calculate_product_cost|search_material|query_material_detail|list_material_groups|greeting|unknown",
-      "entity_type": "product|material|unknown",
-      "params": {{
-        "category": "String hoặc null",
-        "sub_category": "String hoặc null",
-        "material_primary": "String hoặc null",
-        "material_name": "String hoặc null",
-        "material_group": "String hoặc null",
-        "material_subgroup": "String hoặc null",
-        "keywords_vector": "Từ khóa mô tả đầy đủ",
-        "headcode": "String hoặc null",
-        "id_sap": "String hoặc null",
-        "usage_context": "String hoặc null"
-      }},
-      "is_broad_query": boolean,
-      "follow_up_question": "String hoặc null",
-      "suggested_actions": ["String 1", "String 2"]
+        "intent": "search_product|search_product_by_material|search_material_for_product|query_product_materials|calculate_product_cost|search_material|query_material_detail|list_material_groups|greeting|unknown",
+        "entity_type": "product|material|unknown",
+        "params": {{
+            "category": "String hoặc null",
+            "sub_category": "String hoặc null",
+            "material_primary": "String hoặc null",
+            "material_name": "String hoặc null",
+            "material_group": "String hoặc null",
+            "material_subgroup": "String hoặc null",
+            "keywords_vector": "Từ khóa mô tả đầy đủ",
+            "headcode": "String hoặc null",
+            "id_sap": "String hoặc null",
+            "usage_context": "String hoặc null"
+        }},
+        "is_broad_query": boolean,
+        "follow_up_question": "String hoặc null",
+        "suggested_actions": ["String 1", "String 2"]
     }}
     """
     
@@ -207,8 +207,8 @@ def search_products(params: Dict):
     try:
         sql = """
             SELECT headcode, product_name, category, sub_category, 
-                  material_primary, project, project_id,
-                  (description_embedding <=> %s::vector) as distance
+                    material_primary, project, project_id,
+                    (description_embedding <=> %s::vector) as distance
             FROM products_qwen
             WHERE description_embedding IS NOT NULL
             ORDER BY distance ASC
@@ -607,9 +607,9 @@ def rerank_with_feedback(items: list, feedback_scores: Dict, id_key: str = "head
         if feedback_count > 0:
             boosted_items.append(item)
             print(f"SUCCESS: BOOSTED: {item_id[:20]:20} | "
-                  f"Original: {current_score:.3f} → "
-                  f"Final: {new_score:.3f} | "
-                  f"Feedback: {feedback_count:.2f} lần")
+                    f"Original: {current_score:.3f} → "
+                    f"Final: {new_score:.3f} | "
+                    f"Feedback: {feedback_count:.2f} lần")
         else:
             unchanged_items.append(item)
     
@@ -667,11 +667,11 @@ def get_product_materials(headcode: str):
     if not materials:
         return {
             "response": f"WARNING: Sản phẩm **{prod['product_name']}** ({headcode}) chưa có định mức vật liệu.\n\n"
-                      f"Có thể:\n"
-                      f"• Sản phẩm mới chưa nhập định mức\n"
-                      f"• Chưa import file product_materials.csv\n"
-                      f"• Mã sản phẩm trong product_materials không khớp\n\n"
-                      f"Vui lòng kiểm tra lại hoặc liên hệ bộ phận kỹ thuật."
+                        f"Có thể:\n"
+                        f"• Sản phẩm mới chưa nhập định mức\n"
+                        f"• Chưa import file product_materials.csv\n"
+                        f"• Mã sản phẩm trong product_materials không khớp\n\n"
+                        f"Vui lòng kiểm tra lại hoặc liên hệ bộ phận kỹ thuật."
         }
     
     total = 0
@@ -731,7 +731,6 @@ def get_product_materials(headcode: str):
         "product_name": prod['product_name']
     }
 
-
 def calculate_product_cost(headcode: str):
     """Tính CHI PHÍ NGUYÊN VẬT LIỆU sản phẩm (Đơn giản hóa V4.7)"""
     conn = get_db()
@@ -773,13 +772,13 @@ def calculate_product_cost(headcode: str):
     if not materials:
         return {
             "response": f"⚠️ Sản phẩm **{prod['product_name']}** ({headcode}) chưa có định mức vật liệu.\n\n"
-                      f"**Nguyên nhân có thể:**\n"
-                      f"• Sản phẩm mới chưa nhập định mức\n"
-                      f"• Chưa import file `product_materials.csv`\n"
-                      f"• Mã sản phẩm trong file CSV không khớp với `{headcode}`\n\n"
-                      f"**Giải pháp:**\n"
-                      f"1. Kiểm tra file CSV có dòng nào với `product_headcode = {headcode}`\n"
-                      f"2. Import lại file qua sidebar: **Import Dữ Liệu → Định Mức**"
+                        f"**Nguyên nhân có thể:**\n"
+                        f"• Sản phẩm mới chưa nhập định mức\n"
+                        f"• Chưa import file `product_materials.csv`\n"
+                        f"• Mã sản phẩm trong file CSV không khớp với `{headcode}`\n\n"
+                        f"**Giải pháp:**\n"
+                        f"1. Kiểm tra file CSV có dòng nào với `product_headcode = {headcode}`\n"
+                        f"2. Import lại file qua sidebar: **Import Dữ Liệu → Định Mức**"
         }
     
     # ✅ Tính TỔNG CHI PHÍ VẬT LIỆU
@@ -806,17 +805,13 @@ def calculate_product_cost(headcode: str):
     
     # ✅ RESPONSE ĐƠN GIẢN - CHỈ CHI PHÍ VẬT LIỆU
     response = f"""
-💰 **BÁO GIÁ NGUYÊN VẬT LIỆU**
-
-📦 **Sản phẩm:** {prod['product_name']}
-🏷️ **Mã:** `{headcode}`
-📂 **Danh mục:** {prod['category'] or 'N/A'}
-
----
-
-**CHI TIẾT NGUYÊN VẬT LIỆU ({material_count} loại):**
-
-"""
+                💰 **BÁO GIÁ NGUYÊN VẬT LIỆU**
+                📦 **Sản phẩm:** {prod['product_name']}
+                🏷️ **Mã:** `{headcode}`
+                📂 **Danh mục:** {prod['category'] or 'N/A'}
+                ---
+                **CHI TIẾT NGUYÊN VẬT LIỆU ({material_count} loại):**
+    """
     
     for idx, mat in enumerate(materials_detail[:15], 1):
         response += f"{idx}. **{mat['material_name']}** ({mat['material_group']})\n"

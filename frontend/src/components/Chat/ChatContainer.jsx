@@ -1,13 +1,17 @@
-import React, { useRef, useEffect } from 'react';
-import Message from './Message';
+import { useAtomValue } from 'jotai';
+import { useEffect, useRef } from 'react';
+import { messagesAtom } from '../../atom/messageAtom';
 import './Chat.css';
+import Message from './Message';
 
-function ChatContainer({ messages, isLoading, onSendMessage }) {
+function ChatContainer({ isLoading, onSendMessage }) {
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  const messages = useAtomValue(messagesAtom);
 
   useEffect(() => {
     scrollToBottom();
