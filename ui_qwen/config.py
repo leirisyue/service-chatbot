@@ -5,7 +5,11 @@ from typing import ClassVar, Dict
 load_dotenv()
 
 class Settings(BaseSettings):
-    My_GOOGLE_API_KEY: str
+    My_GOOGLE_API_KEY: str = ""  # Make optional with default value
+    
+    # API settings
+    API_URL: str = "http://127.0.0.1:8000"
+    API_URL_CHATBOT: str = "http://127.0.0.1:8080"
     
     # Database settings
     DB_NAME: str = "db_vector"

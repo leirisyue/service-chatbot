@@ -20,6 +20,7 @@ import io
 import psycopg2
 from config import settings
 from historiesapi import histories
+from feedbackapi.feedback import get_feedback_boost_for_query
 from historiesapi.histories import router as history_router
 from imageapi.media import router as media_router
 from .textfunc import format_search_results,calculate_product_total_cost,get_latest_material_price,extract_product_keywords,call_gemini_with_retry, search_products_hybrid, search_products_keyword_only
@@ -470,103 +471,6 @@ def search_products_by_material(material_query: str, params: Dict):
         conn.close()
         return {"products": [], "search_method": "cross_table_error"}
 
-
-def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = 0.7) -> Dict:
-    """
-    V5.0 - Vector-based feedback matching
-    Tìm feedback từ các query TƯƠNG TỰ (không cần trùng 100%)
-    
-    Args:
-        query: Câu hỏi hiện tại
-        search_type: "product" hoặc "material"
-        similarity_threshold: Ngưỡng độ tương tự (0.7 = 70%)
-    
-    Returns:
-        Dict[item_id, feedback_score]
-    """
-    try:
-        # 1. Tạo embedding cho query hiện tại
-        query_vector = generate_embedding_qwen(query)
-        
-        if not query_vector:
-            print("ERROR: Không tạo được embedding cho query")
-            return {}
-        
-        conn = get_db()
-        cur = conn.cursor(cursor_factory=RealDictCursor)
-        
-        # 2. Tìm các feedback có query_embedding tương tự (cosine similarity)
-        cur.execute("""
-            SELECT 
-                query,
-                selected_items,
-                (1 - (query_embedding <=> %s::vector)) as similarity
-            FROM user_feedback
-            WHERE search_type = %s
-              AND query_embedding IS NOT NULL
-              AND (1 - (query_embedding <=> %s::vector)) >= %s
-            ORDER BY similarity DESC
-            LIMIT 20
-        """, (query_vector, search_type, query_vector, similarity_threshold))
-        
-        similar_feedbacks = cur.fetchall()
-        conn.close()
-        
-        if not similar_feedbacks:
-            print(f"INFO: Không có feedback tương tự (threshold={similarity_threshold})")
-            return {}
-        
-        # 3. Tính điểm cho từng item (weighted by similarity)
-        item_scores = {}
-        
-        print(f"\n{'='*60}")
-        print(f"INFO: FEEDBACK BOOST: Tìm thấy {len(similar_feedbacks)} query tương tự")
-        print(f"{'='*60}\n")
-        
-        for fb in similar_feedbacks:
-            sim = fb['similarity']
-            
-            try:
-                # FIX: Kiểm tra type trước khi parse
-                selected_items = fb['selected_items']
-                
-                # Nếu là string JSON → parse
-                if isinstance(selected_items, str):
-                    selected = json.loads(selected_items)
-                # Nếu đã là list → dùng luôn
-                elif isinstance(selected_items, list):
-                    selected = selected_items
-                else:
-                    print(f"WARNING: Unknown type for selected_items: {type(selected_items)}")
-                    continue
-                
-                print(f"SUCCESS: Query: '{fb['query'][:50]}...' (sim={sim:.2f})")
-                print(f"→ Selected: {selected[:3]}")
-                
-                for item_id in selected:
-                    # Điểm = similarity * 1 (có thể thay bằng decay theo thời gian)
-                    item_scores[item_id] = item_scores.get(item_id, 0) + sim
-                    
-            except Exception as e:
-                print(f"WARNING: Skip feedback: {e}")
-                continue
-        
-        if item_scores:
-            print(f"\nINFO: Kết quả:")
-            for item_id, score in sorted(item_scores.items(), key=lambda x: x[1], reverse=True)[:5]:
-                print(f"   {item_id}: {score:.2f} điểm")
-        else:
-            print("INFO: Không có item nào được boost")
-            
-        print(f"{'='*60}\n")
-        
-        return item_scores
-        
-    except Exception as e:
-        print(f"ERROR: Failed to get feedback boost: {e}")
-        import traceback
-        traceback.print_exc()
-        return {}
 
 
 def rerank_with_feedback(items: list, feedback_scores: Dict, id_key: str = "headcode", boost_weight: float = 0.3):
