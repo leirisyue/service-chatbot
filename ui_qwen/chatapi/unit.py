@@ -1,6 +1,8 @@
 
+import re
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel
-from typing import Optional, List, Dict
 
 # ========================================
 
@@ -16,4 +18,18 @@ class ChatMessage(BaseModel):
     message: str
     email: Optional[str] = None  # Make email optional for backward compatibility
     context: Optional[Dict] = {}
+
+class BatchProductRequest(BaseModel):
+    product_headcodes: List[str]
+    session_id: str = ""
+    operation: str  # "detail", "materials", "cost"
+
+class ConsolidatedBOMRequest(BaseModel):
+    product_headcodes: List[str]
+    session_id: str = ""
+    
+class TrackingRequest(BaseModel):
+    session_id: str
+    product_headcode: str
+    interaction_type: str  # 'view', 'reject', 'select'
 

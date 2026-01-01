@@ -10,3 +10,4 @@ streamlit
 cachetools
 pydantic_settings
 PrettyTable
+openpyxl

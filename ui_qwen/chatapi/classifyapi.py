@@ -222,7 +222,7 @@ async def search_by_image(
             "material_primary": ai_result.get("material_detected")
         }
         
-        search_result = search_products(params)
+        search_result = search_products(params, session_id=session_id)
         products = search_result.get("products", [])
         
         histories.save_chat_to_histories(

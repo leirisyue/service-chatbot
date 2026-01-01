@@ -1,33 +1,50 @@
 
-import json
-from typing import Dict
-from config import settings
-from fastapi import APIRouter
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional, List, Dict
-from psycopg2.extras import RealDictCursor
-import google.generativeai as genai
-import uuid
-import time
-import json
-from PIL import Image
-import os
-import re
-import pandas as pd
 import io
+import json
+import os
+import re  # <--- Thêm cái này
+import time
+import uuid
+from io import BytesIO
+from typing import Dict, List, Optional
+from datetime import datetime
+
+import google.generativeai as genai
+import pandas as pd
 import psycopg2
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils.dataframe import dataframe_to_rows
+from PIL import Image
+from prettytable import PrettyTable
+from psycopg2.extras import RealDictCursor
+from pydantic import BaseModel
+
+from fastapi.responses import StreamingResponse
+
 from config import settings
-from historiesapi import histories
 from feedbackapi.feedback import get_feedback_boost_for_query
-from rankingapi.ranking import rerank_with_feedback,get_ranking_summary,apply_feedback_to_search
+from historiesapi import histories
 from historiesapi.histories import router as history_router
 from imageapi.media import router as media_router
-from .textfunc import format_search_results,calculate_product_total_cost,get_latest_material_price,extract_product_keywords,call_gemini_with_retry, search_products_hybrid, search_products_keyword_only
-from .unit import ChatMessage
+from rankingapi.ranking import (apply_feedback_to_search, get_ranking_summary,
+                                rerank_with_feedback)
+
 from .embeddingapi import generate_embedding_qwen
-from prettytable import PrettyTable
+from .textfunc import (calculate_product_total_cost, call_gemini_with_retry,
+                       extract_product_keywords, format_search_results,
+                       get_latest_material_price, search_products_hybrid,calculate_personalized_score,generate_consolidated_report,
+                       search_products_keyword_only)
+from .unit import (BatchProductRequest, ChatMessage, ConsolidatedBOMRequest,
+                   TrackingRequest)
+
+# --- TỰ ĐỊNH NGHĨA REGEX ĐỂ LỌC KÝ TỰ LỖI ---
+# Regex này lọc các ký tự ASCII điều khiển (Control chars) không hợp lệ trong file Excel (XML)
+# Bao gồm: ASCII 0-8, 11-12, 14-31
+ILLEGAL_CHARACTERS_RE = re.compile(r'[\000-\010]|[\013-\014]|[\016-\037]')
+
 
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
@@ -172,7 +189,7 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
         print(f"Parse Error: {e}")
         return {"intent": "error", "raw": response_text}
 
-def search_products(params: Dict):
+def search_products(params: Dict, session_id: str = None):
     """Multi-tier: HYBRID -> Vector -> Keyword"""
     
     # TIER 1: Thử Hybrid trước
@@ -182,6 +199,133 @@ def search_products(params: Dict):
             # Cập nhật total_cost cho các sản phẩm trong hybrid search
             for product in result["products"]:
                 product["total_cost"] = calculate_product_total_cost(product["headcode"])
+                
+            products = result["products"]
+            
+            # ========== STEP 1: BASE SCORES ==========
+            for product in products:
+                product['base_score'] = float(product.get('similarity', 0.5))
+            
+            # ========== STEP 2: PERSONALIZATION ==========
+            # ✅ CHỈ áp dụng nếu có session_id VÀ user có history
+            has_personalization = False
+            
+            if session_id:
+                print(f"\n🎯 Personalization for {session_id[:8]}...")
+                
+                # ✅ CHECK trước xem user có history không
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(*) FROM user_preferences 
+                    WHERE session_id = %s
+                """, (session_id,))
+                history_count = cur.fetchone()[0]
+                conn.close()
+                
+                if history_count > 0:
+                    has_personalization = True
+                    print(f"   ✅ Found {history_count} interactions")
+                    
+                    for product in products:
+                        conn = get_db()
+                        cur = conn.cursor(cursor_factory=RealDictCursor)
+                        
+                        cur.execute("""
+                            SELECT description_embedding 
+                            FROM products 
+                            WHERE headcode = %s AND description_embedding IS NOT NULL
+                        """, (product['headcode'],))
+                        
+                        vec_result = cur.fetchone()
+                        conn.close()
+                        
+                        if vec_result and vec_result['description_embedding']:
+                            personal_score = calculate_personalized_score(
+                                vec_result['description_embedding'],
+                                session_id
+                            )
+                            product['personal_score'] = float(personal_score)
+                        else:
+                            product['personal_score'] = 0.5
+                else:
+                    print(f"   ℹ️ No history - Skip personalization")
+            
+            # ✅ Nếu không có personalization → set neutral 0.5
+            if not has_personalization:
+                for product in products:
+                    product['personal_score'] = 0.5
+            
+            print(f"✅ Personalization done\n")
+            
+            # ========== STEP 3: FEEDBACK SCORES ==========
+            print(f"🎯 Feedback Scoring...")
+            
+            feedback_dict = get_feedback_boost_for_query(
+                params.get("keywords_vector", ""),
+                search_type="product",
+                similarity_threshold=0.85
+            )
+            
+            max_feedback = max(feedback_dict.values()) if feedback_dict else 1.0
+            
+            for product in products:
+                headcode = product.get('headcode')
+                raw_feedback = feedback_dict.get(headcode, 0)
+                
+                product['feedback_score'] = float(raw_feedback / max_feedback) if max_feedback > 0 else 0.0
+                product['feedback_count'] = float(raw_feedback)
+            
+            print(f"✅ Feedback Scoring done\n")
+            
+            # ========== STEP 4: WEIGHTED SUM ==========
+            print(f"🎯 Final Ranking (Weighted Sum)...")
+            
+            # ✅ ADAPTIVE WEIGHTS
+            if has_personalization:
+                # User có history → ưu tiên personalization
+                W_BASE = 0.3
+                W_PERSONAL = 0.5
+                W_FEEDBACK = 0.2
+            else:
+                # User mới → ưu tiên base + social proof
+                W_BASE = 0.6
+                W_PERSONAL = 0.0  # ❌ KHÔNG dùng personal_score
+                W_FEEDBACK = 0.4
+            
+            for idx, product in enumerate(products):
+                base = product.get('base_score', 0.5)
+                personal = product.get('personal_score', 0.5)
+                feedback = product.get('feedback_score', 0.0)
+                
+                # ✅ Chỉ tính personal nếu has_personalization
+                if has_personalization:
+                    final_score = (W_BASE * base) + (W_PERSONAL * personal) + (W_FEEDBACK * feedback)
+                else:
+                    final_score = (W_BASE * base) + (W_FEEDBACK * feedback)
+                
+                product['final_score'] = float(final_score)
+                product['original_rank'] = idx + 1
+                
+                print(f"  {product['headcode']}: "
+                      f"base={base:.3f} | pers={personal:.3f} | fb={feedback:.3f} "
+                      f"→ final={final_score:.3f}")
+            
+            # ========== STEP 5: SORT FINAL ==========
+            products.sort(key=lambda x: x.get('final_score', 0), reverse=True)
+            
+            for idx, product in enumerate(products):
+                product['final_rank'] = idx + 1
+                
+                if product.get('feedback_count', 0) > 0:
+                    product['has_feedback'] = True
+            
+            print(f"✅ Final Ranking complete\n")
+            
+            result["products"] = products
+            result["ranking_summary"] = get_ranking_summary(products)
+            result["can_provide_feedback"] = True
+            
             return result
     except Exception as e:
         print(f"WARNING: TIER 1 failed: {e}")
@@ -231,9 +375,6 @@ def search_products(params: Dict):
     # TIER 3: Keyword
     conn.close()
     return search_products_keyword_only(params)
-
-
-
 
 def search_products_by_material(material_query: str, params: Dict):
     """
@@ -367,7 +508,6 @@ def search_products_by_material(material_query: str, params: Dict):
         conn.close()
         return {"products": [], "search_method": "cross_table_error"}
 
-
 def get_product_materials(headcode: str):
     """Lấy danh sách vật liệu của SẢN PHẨM"""
     conn = get_db()
@@ -408,6 +548,13 @@ def get_product_materials(headcode: str):
     
     conn.close()
     
+    price_history = []
+    try:
+        if materials['material_subprice']:
+            price_history = json.loads(materials['material_subprice'])
+    except:
+        pass
+    
     if not materials:
         return {
             "response": f"WARNING: Sản phẩm **{prod['product_name']}** ({headcode}) chưa có định mức vật liệu.\n\n"
@@ -435,8 +582,9 @@ def get_product_materials(headcode: str):
             'material_unit': mat['material_unit'],
             'image_url': mat['image_url'],
             'quantity': quantity,
-            'pm_unit': mat['pm_unit'],
+            'price': latest_price,
             'unit_price': latest_price,
+            'unit': mat['material_unit'],
             'total_cost': total_cost,
             'price_history': mat['material_subprice']
         })
@@ -468,11 +616,26 @@ def get_product_materials(headcode: str):
     response += f"\n---\n\n💰 **TỔNG CHI PHÍ NGUYÊN VẬT LIỆU: {total:,.2f} VNĐ**"
     response += f"\n\n⚠️ **Lưu ý:** Giá được tính từ lịch sử mua hàng gần nhất. Giá thực tế có thể thay đổi."
     
+    
+    if materials.get('image_url'):
+        response += f"---\n\n🖼️ **Xem ảnh vật liệu:** [Google Drive Link]({material['image_url']})\n"
+        response += f"_(Click để xem ảnh chi tiết)_"
+    
     return {
         "response": response,
+        # "material_detail": dict(material),
+        "materials": [{  # ✅ Đổi thành list giống search_materials
+            **dict(materials),
+            'price': latest_price  # ✅ Thêm key 'price'
+        }],
         "materials": materials_with_price,
         "total_cost": total,
-        "product_name": prod['product_name']
+        "product_name": prod['product_name'],
+        "latest_price": latest_price,
+        "price_history": price_history,
+        "used_in_products": [dict(p) for p in used_in_products],
+        "stats": dict(stats) if stats else {},
+        "has_image": bool(material.get('image_url'))
     }
 
 def calculate_product_cost(headcode: str):
@@ -575,7 +738,6 @@ def calculate_product_cost(headcode: str):
         "material_count": material_count,
         "materials": materials_detail
     }
-
 
 def search_materials(params: Dict):
     """Tìm kiếm NGUYÊN VẬT LIỆU với giá từ material_subprice"""
@@ -688,16 +850,15 @@ def search_materials(params: Dict):
             "materials": []
         }
 
-
 def get_material_detail(id_sap: str = None, material_name: str = None):
     """Xem chi tiết VẬT LIỆU + lịch sử giá + sản phẩm sử dụng"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     if id_sap:
-        cur.execute("SELECT * FROM materials_qwen WHERE id_sap = %s", (id_sap,))
+        cur.execute("SELECT * FROM materials WHERE id_sap = %s", (id_sap,))
     elif material_name:
-        cur.execute("SELECT * FROM materials_qwen WHERE material_name ILIKE %s LIMIT 1", (f"%{material_name}%",))
+        cur.execute("SELECT * FROM materials WHERE material_name ILIKE %s LIMIT 1", (f"%{material_name}%",))
     else:
         conn.close()
         return {"response": "⚠️ Cần cung cấp mã SAP hoặc tên vật liệu."}
@@ -709,7 +870,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         return {"response": f"❌ Không tìm thấy vật liệu **{id_sap or material_name}**"}
     
     latest_price = get_latest_material_price(material['material_subprice'])
-    
+
     sql = """
         SELECT 
             p.headcode,
@@ -818,14 +979,17 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     
     return {
         "response": response,
-        "material_detail": dict(material),
+        # "material_detail": dict(material),
+        "materials": [{  # ✅ Đổi thành list giống search_materials
+            **dict(material),
+            'price': latest_price  # ✅ Thêm key 'price'
+        }],
         "latest_price": latest_price,
         "price_history": price_history,
         "used_in_products": [dict(p) for p in used_in_products],
         "stats": dict(stats) if stats else {},
         "has_image": bool(material.get('image_url'))
     }
-
 
 def list_material_groups():
     """Liệt kê các nhóm vật liệu với giá tính từ material_subprice"""
@@ -884,6 +1048,7 @@ def list_material_groups():
         "material_groups": groups_with_stats
     }
 
+
 # ========================================
 # API ENDPOINTS
 # ========================================
@@ -927,21 +1092,12 @@ def chat(msg: ChatMessage):
             }
         
         elif intent == "search_product":
-            search_result = search_products(params)
-            # print(f"🔍 Search result: {search_result}")
+            search_result = search_products(params, session_id=msg.session_id)
             products = search_result.get("products", [])
             
-            # ✅ THÊM: Áp dụng feedback ranking
-            products = apply_feedback_to_search(
-                products, 
-                user_message,
-                search_type="product",
-                id_key="headcode"
-            )
+            # ✅ search_products đã xử lý HẾT ranking rồi, không cần gọi gì thêm
             
-            # ✅ THÊM: Lấy ranking summary
-            ranking_summary = get_ranking_summary(products)
-            
+            ranking_summary = search_result.get("ranking_summary", {})
             result_count = len(products)
             
             if not products:
@@ -1129,6 +1285,65 @@ def chat(msg: ChatMessage):
                             "Xem báo giá chi tiết",
                             "Tư vấn phối màu phù hợp"
                         ]
+                    }
+        
+        elif intent == "search_material_for_product":
+            # 1. Lấy query từ params hoặc context
+            product_query = params.get("category") or params.get("usage_context") or params.get("keywords_vector")
+            
+            if not product_query:
+                result_response = {
+                    "response": "⚠️ Bạn muốn tìm vật liệu để làm sản phẩm gì?",
+                    "suggested_prompts": [
+                        "🧱 Vật liệu làm bàn ăn",
+                        "🧱 Nguyên liệu ghế sofa",
+                        "🧱 Đá làm bàn coffee"
+                    ]
+                }
+            else:
+                # 2. Gọi hàm tìm kiếm
+                search_result = search_materials_for_product(product_query, params)
+                materials = search_result.get("materials", [])
+                
+                # 3. [MỚI] Áp dụng Feedback Ranking (Giống Intent 3)
+                # Dùng query gốc của user để tìm feedback tương tự
+                feedback_scores = get_feedback_boost_for_query(user_message, "material")
+                if feedback_scores:
+                    materials = rerank_with_feedback(materials, feedback_scores, "id_sap")
+                
+                # 4. [MỚI] Lấy thông tin Ranking Summary để hiển thị UI
+                ranking_summary = get_ranking_summary(materials)
+                
+                result_count = len(materials)
+                
+                if not materials:
+                    result_response = {
+                        "response": "Không tìm thấy vật liệu phù hợp.",
+                        "materials": []
+                    }
+                else:
+                    explanation = search_result.get("explanation", "")
+                    
+                    response_text = f"✅ {explanation}\n\n"
+                    
+                    # Hiển thị thông báo nếu có Ranking
+                    if ranking_summary['ranking_applied']:
+                         response_text += f"⭐ **{ranking_summary['boosted_items']} vật liệu** được ưu tiên dựa trên lịch sử.\n\n"
+                         
+                    response_text += f"🧱 Tìm thấy **{len(materials)} vật liệu** thường dùng:\n\n"
+                    
+                    for idx, mat in enumerate(materials[:5], 1):
+                        response_text += f"{idx}. **{mat['material_name']}**\n"
+                        response_text += f"   • Nhóm: {mat['material_group']}\n"
+                        response_text += f"   • Giá: {mat.get('price', 0):,.0f} VNĐ/{mat.get('unit', '')}\n"
+                        response_text += f"   • Dùng trong {mat.get('usage_count', 0)} sản phẩm\n\n"
+                    
+                    result_response = {
+                        "response": response_text,
+                        "materials": materials,
+                        "search_method": "cross_table_product_to_material", # Đánh dấu để UI nhận biết
+                        "ranking_summary": ranking_summary,   # Truyền xuống UI
+                        "can_provide_feedback": True          # Bật nút Feedback
                     }
                     
         elif intent == "query_product_materials":
@@ -1335,7 +1550,7 @@ def chat(msg: ChatMessage):
             if params.get("keywords_vector"):
                 keywords = extract_product_keywords(params["keywords_vector"])
                 
-        print(f"SUCCESS => Final response: {result_response.get('materials', '')}, count: {result_count}")
+        # print(f"SUCCESS => Final response: {result_response.get('materials', '')}, count: {result_count}")
         listProducts = listProducts or result_response.get("products", []) or result_response.get("materials", [])
         # Save chat history
         histories.save_chat_to_histories(
@@ -1345,6 +1560,10 @@ def chat(msg: ChatMessage):
             messages=listProducts,
             answer=result_response.get("response", "")
         )
+        
+        if result_response:
+            result_response["query"] = user_message 
+            
         return result_response
     
     except Exception as e:
@@ -1353,3 +1572,376 @@ def chat(msg: ChatMessage):
         traceback.print_exc()
         return {"response": f"⚠️ Lỗi hệ thống: {str(e)}"}
     
+@router.post("/batch/products")
+def batch_product_operations(request: BatchProductRequest):
+    """
+    🔥 Xử lý batch operations cho nhiều sản phẩm
+    Operations: detail, materials, cost
+    """
+    try:
+        if not request.product_headcodes:
+            return {"response": "⚠️ Vui lòng chọn ít nhất 1 sản phẩm"}
+        
+        headcodes = request.product_headcodes
+        operation = request.operation
+        
+        print(f"📦 Batch {operation}: {len(headcodes)} products")
+        
+        # ========== OPERATION: CHI TIẾT SẢN PHẨM ==========
+        if operation == "detail":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cur.execute("""
+                SELECT headcode, product_name, category, sub_category, 
+                       material_primary, project, unit
+                FROM products
+                WHERE headcode = ANY(%s)
+                ORDER BY product_name
+            """, (headcodes,))
+            
+            products = cur.fetchall()
+            conn.close()
+            
+            if not products:
+                return {"response": "❌ Không tìm thấy sản phẩm"}
+            
+            response = f"📋 **CHI TIẾT {len(products)} SẢN PHẨM:**\n\n"
+            
+            for idx, prod in enumerate(products, 1):
+                response += f"**{idx}. {prod['product_name']}**\n"
+                response += f"   • Mã: `{prod['headcode']}`\n"
+                response += f"   • Danh mục: {prod.get('category', 'N/A')}"
+                
+                if prod.get('sub_category'):
+                    response += f" - {prod['sub_category']}"
+                
+                response += f"\n   • Vật liệu chính: {prod.get('material_primary', 'N/A')}\n"
+                
+                if prod.get('project'):
+                    response += f"   • Dự án: {prod['project']}\n"
+                
+                response += "\n"
+            
+            return {
+                "response": response,
+                "products": [dict(p) for p in products]
+            }
+        
+        # ========== OPERATION: ĐỊNH MỨC VẬT LIỆU ==========
+        elif operation == "materials":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Lấy tất cả vật liệu của các sản phẩm
+            cur.execute("""
+                SELECT 
+                    p.headcode,
+                    p.product_name,
+                    m.id_sap,
+                    m.material_name,
+                    m.material_group,
+                    m.material_subprice,
+                    m.unit,
+                    pm.quantity,
+                    pm.unit as pm_unit
+                FROM product_materials pm
+                INNER JOIN products p ON pm.product_headcode = p.headcode
+                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                WHERE p.headcode = ANY(%s)
+                ORDER BY p.product_name, m.material_name
+            """, (headcodes,))
+            
+            records = cur.fetchall()
+            conn.close()
+            
+            if not records:
+                return {"response": "⚠️ Các sản phẩm này chưa có định mức vật liệu"}
+            
+            # Group by product
+            products_dict = {}
+            for rec in records:
+                hc = rec['headcode']
+                if hc not in products_dict:
+                    products_dict[hc] = {
+                        'headcode': hc,
+                        'product_name': rec['product_name'],
+                        'materials': []
+                    }
+                
+                price = get_latest_material_price(rec['material_subprice'])
+                qty = float(rec['quantity']) if rec['quantity'] else 0.0
+                
+                products_dict[hc]['materials'].append({
+                    'id_sap': rec['id_sap'],
+                    'name': rec['material_name'],
+                    'group': rec['material_group'],
+                    'quantity': qty,
+                    'unit': rec['pm_unit'],
+                    'price': price,
+                    'total': qty * price
+                })
+            
+            # Tạo response
+            response = f"🧱 **ĐỊNH MỨC VẬT LIỆU - {len(products_dict)} SẢN PHẨM:**\n\n"
+            
+            for prod_data in products_dict.values():
+                response += f"### 📦 {prod_data['product_name']} (`{prod_data['headcode']}`)\n\n"
+                
+                total_cost = sum(m['total'] for m in prod_data['materials'])
+                
+                for idx, mat in enumerate(prod_data['materials'][:10], 1):
+                    response += f"{idx}. **{mat['name']}** ({mat['group']})\n"
+                    response += f"   • Số lượng: {mat['quantity']} {mat['unit']}\n"
+                    response += f"   • Đơn giá: {mat['price']:,.0f} VNĐ\n"
+                    response += f"   • Thành tiền: **{mat['total']:,.0f} VNĐ**\n\n"
+                
+                if len(prod_data['materials']) > 10:
+                    response += f"*...và {len(prod_data['materials'])-10} vật liệu khác*\n\n"
+                
+                response += f"💰 **Tổng NVL ({prod_data['headcode']}): {total_cost:,.0f} VNĐ**\n\n"
+                response += "---\n\n"
+            
+            # Tạo materials list để UI có thể render cards
+            all_materials = []
+            for prod_data in products_dict.values():
+                all_materials.extend(prod_data['materials'])
+            
+            return {
+                "response": response,
+                "products_materials": products_dict,
+                "materials": all_materials  # Để UI render material cards
+            }
+        
+        # ========== OPERATION: CHI PHÍ ==========
+        elif operation == "cost":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cur.execute("""
+                SELECT 
+                    p.headcode,
+                    p.product_name,
+                    p.category,
+                    m.material_name,
+                    m.material_group,
+                    m.material_subprice,
+                    pm.quantity,
+                    pm.unit
+                FROM product_materials pm
+                INNER JOIN products p ON pm.product_headcode = p.headcode
+                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                WHERE p.headcode = ANY(%s)
+                ORDER BY p.product_name
+            """, (headcodes,))
+            
+            records = cur.fetchall()
+            conn.close()
+            
+            if not records:
+                return {"response": "⚠️ Không có dữ liệu định mức"}
+            
+            # Tính chi phí từng sản phẩm
+            products_cost = {}
+            for rec in records:
+                hc = rec['headcode']
+                if hc not in products_cost:
+                    products_cost[hc] = {
+                        'headcode': hc,
+                        'name': rec['product_name'],
+                        'category': rec['category'],
+                        'material_cost': 0.0,
+                        'materials_detail': []
+                    }
+                
+                qty = float(rec['quantity']) if rec['quantity'] else 0.0
+                price = get_latest_material_price(rec['material_subprice'])
+                total = qty * price
+                
+                products_cost[hc]['material_cost'] += total
+                products_cost[hc]['materials_detail'].append({
+                    'name': rec['material_name'],
+                    'group': rec['material_group'],
+                    'quantity': qty,
+                    'unit': rec['unit'],
+                    'price': price,
+                    'total': total
+                })
+            
+            # Response
+            response = f"💰 **BÁO CÁO CHI PHÍ - {len(products_cost)} SẢN PHẨM:**\n\n"
+            
+            grand_total = 0.0
+            
+            for prod_data in products_cost.values():
+                response += f"### 📦 {prod_data['name']} (`{prod_data['headcode']}`)\n"
+                response += f"**Danh mục:** {prod_data['category']}\n\n"
+                response += f"**Chi phí nguyên vật liệu:** {prod_data['material_cost']:,.0f} VNĐ\n"
+                response += f"   • {len(prod_data['materials_detail'])} loại vật liệu\n\n"
+                response += "---\n\n"
+                
+                grand_total += prod_data['material_cost']
+            
+            response += f"## 💵 TỔNG CHI PHÍ NVL: {grand_total:,.0f} VNĐ\n\n"
+            response += "📋 *Chi phí được tính từ giá nguyên vật liệu gần nhất*"
+            
+            return {
+                "response": response,
+                "products_cost": products_cost,
+                "grand_total": grand_total
+            }
+        
+        else:
+            return {"response": "❌ Operation không hợp lệ"}
+    
+    except Exception as e:
+        print(f"❌ Batch operation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"response": f"❌ Lỗi: {str(e)}"}
+# ========================================
+# MODULE 1: CONSOLIDATED BOM REPORT
+# ========================================
+
+@router.post("/report/consolidated")
+def create_consolidated_report(request: ConsolidatedBOMRequest):
+    """
+    📊 API Endpoint tạo báo cáo tổng hợp định mức vật tư
+    
+    Input: {"product_headcodes": ["B001", "B002", "G001"], "session_id": "..."}
+    Output: File Excel (.xlsx)
+    """
+    try:
+        if not request.product_headcodes or len(request.product_headcodes) == 0:
+            return {"message": "⚠️ Vui lòng chọn ít nhất 1 sản phẩm"}
+        
+        print(f"📊 Generating report for {len(request.product_headcodes)} products...")
+        
+        # Tạo file Excel
+        excel_buffer = generate_consolidated_report(request.product_headcodes)
+        
+        # Lưu lịch sử (Optional)
+        # if request.session_id:
+            # save_chat_history(
+            #     session_id=request.session_id,
+            #     user_message=f"[REPORT] Tổng hợp {len(request.product_headcodes)} sản phẩm",
+            #     bot_response="Đã tạo báo cáo Excel",
+            #     intent="generate_report",
+            #     params={"products": request.product_headcodes},
+            #     result_count=len(request.product_headcodes),
+            #     search_type="report"
+            # )
+    
+        
+        filename = f"BOM_Consolidated_{len(request.product_headcodes)}SP_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        return {"message": f"❌ {str(e)}"}
+    except Exception as e:
+        print(f"❌ Report generation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"message": f"❌ Lỗi tạo báo cáo: {str(e)}"}
+
+
+@router.post("/track/view")
+def track_product_view(request: TrackingRequest):
+    """
+    👁️ Track khi user XEM CHI TIẾT sản phẩm (Positive Signal)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Lấy embedding của sản phẩm
+        cur.execute("""
+            SELECT description_embedding 
+            FROM products 
+            WHERE headcode = %s AND description_embedding IS NOT NULL
+        """, (request.product_headcode,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            conn.close()
+            return {"message": "Product not found or no embedding"}
+        
+        product_vector = result['description_embedding']
+        
+        # Lưu vào user_preferences
+        cur.execute("""
+            INSERT INTO user_preferences 
+            (session_id, product_headcode, product_vector, interaction_type, weight)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            request.session_id,
+            request.product_headcode,
+            product_vector,
+            'view',
+            1.0  # Positive signal
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Tracked VIEW: {request.product_headcode} by {request.session_id[:8]}")
+        
+        return {"message": "✅ Tracked successfully", "type": "view"}
+        
+    except Exception as e:
+        print(f"❌ Tracking error: {e}")
+        return {"message": f"Error: {str(e)}"}
+
+
+@router.post("/track/reject")
+def track_product_reject(request: TrackingRequest):
+    """
+    ❌ Track khi user BỎ QUA/REJECT sản phẩm (Negative Signal)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT description_embedding 
+            FROM products 
+            WHERE headcode = %s AND description_embedding IS NOT NULL
+        """, (request.product_headcode,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            conn.close()
+            return {"message": "Product not found"}
+        
+        product_vector = result['description_embedding']
+        
+        cur.execute("""
+            INSERT INTO user_preferences 
+            (session_id, product_headcode, product_vector, interaction_type, weight)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            request.session_id,
+            request.product_headcode,
+            product_vector,
+            'reject',
+            -1.0  # Negative signal
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"❌ Tracked REJECT: {request.product_headcode} by {request.session_id[:8]}")
+        
+        return {"message": "✅ Tracked rejection", "type": "reject"}
+        
+    except Exception as e:
+        print(f"❌ Tracking error: {e}")
+        return {"message": f"Error: {str(e)}"}
+

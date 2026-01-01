@@ -15,6 +15,12 @@ import io
 import psycopg2
 from config import settings
 from .embeddingapi import generate_embedding_qwen
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+
+import re  # <--- Thêm cái này
+from io import BytesIO
+from typing import List
 
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
@@ -536,3 +542,306 @@ def search_products_keyword_only(params: Dict):
             "products": []
         }
         
+
+def calculate_personalized_score(
+    candidate_vector: list, 
+    session_id: str
+) -> float:
+    """
+    🎯 V5.7 - Trả về điểm Personalization RIÊNG (0.0 → 1.0)
+    KHÔNG trả về final_score, để search_products tổng hợp sau
+    
+    Returns:
+        float: Personal affinity score (0.0 = không khớp, 1.0 = rất khớp)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Lấy 10 interactions gần nhất
+        cur.execute("""
+            SELECT product_vector, weight
+            FROM user_preferences
+            WHERE session_id = %s
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, (session_id,))
+        
+        history = cur.fetchall()
+        conn.close()
+        
+        if not history:
+            return 0.5  # Neutral score khi chưa có history
+        
+        # Convert candidate sang numpy
+        if isinstance(candidate_vector, str):
+            candidate_np = np.array(json.loads(candidate_vector), dtype=np.float32)
+        else:
+            candidate_np = np.array(candidate_vector, dtype=np.float32)
+        
+        positive_scores = []
+        negative_scores = []
+        
+        for record in history:
+            try:
+                vec_data = record['product_vector']
+                
+                if vec_data is None:
+                    continue
+                    
+                # Parse vector
+                if isinstance(vec_data, str):
+                    hist_vector = np.array(json.loads(vec_data), dtype=np.float32)
+                elif isinstance(vec_data, list):
+                    hist_vector = np.array(vec_data, dtype=np.float32)
+                else:
+                    continue
+                
+                # Check dimension match
+                if len(hist_vector) != len(candidate_np):
+                    continue
+                
+                # Cosine Similarity
+                norm_product = np.linalg.norm(candidate_np) * np.linalg.norm(hist_vector)
+                if norm_product < 1e-8:
+                    continue
+                    
+                similarity = np.dot(candidate_np, hist_vector) / norm_product
+                
+                # Phân loại theo weight
+                if record['weight'] > 0:
+                    positive_scores.append(similarity)
+                else:
+                    negative_scores.append(similarity)
+                    
+            except Exception:
+                continue
+        
+        # Fallback nếu không có scores hợp lệ
+        if not positive_scores and not negative_scores:
+            return 0.5
+        
+        # Tính điểm affinity thuần túy
+        positive_affinity = np.mean(positive_scores) if positive_scores else 0.0
+        negative_penalty = np.mean(negative_scores) if negative_scores else 0.0
+        
+        # Formula: Positive boost - Negative penalty
+        personal_score = positive_affinity - (negative_penalty * 0.5)
+        
+        # Clip về [0, 1]
+        personal_score = float(np.clip(personal_score, 0.0, 1.0))
+        
+        return personal_score
+        
+    except Exception as e:
+        print(f"⚠️ Personalization error: {e}")
+        return 0.5
+
+
+def generate_consolidated_report(product_headcodes: List[str]) -> BytesIO:
+    """
+    Tạo báo cáo Excel tổng hợp định mức vật tư cho nhiều sản phẩm
+    
+    Args:
+        product_headcodes: Danh sách mã sản phẩm
+    
+    Returns:
+        BytesIO: File Excel buffer
+    """
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # 1. LẤY THÔNG TIN SẢN PHẨM
+    cur.execute("""
+        SELECT headcode, product_name, category, sub_category, project
+        FROM products 
+        WHERE headcode = ANY(%s)
+        ORDER BY product_name
+    """, (product_headcodes,))
+    
+    selected_products = cur.fetchall()
+    
+    if not selected_products:
+        raise ValueError("Không tìm thấy sản phẩm nào")
+    
+    # 2. LẤY ĐỊNH MỨC CHI TIẾT (Flatten View)
+    cur.execute("""
+        SELECT 
+            p.headcode,
+            p.product_name,
+            m.id_sap,
+            m.material_name,
+            m.material_group,
+            m.material_subgroup,
+            m.unit as material_unit,
+            pm.quantity,
+            pm.unit as pm_unit,
+            m.material_subprice
+        FROM product_materials pm
+        INNER JOIN products p ON pm.product_headcode = p.headcode
+        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+        WHERE p.headcode = ANY(%s)
+        ORDER BY p.product_name, m.material_name
+    """, (product_headcodes,))
+    
+    detail_records = cur.fetchall()
+    conn.close()
+    
+    if not detail_records:
+        raise ValueError("Các sản phẩm này chưa có định mức vật tư")
+    
+    # 3. AGGREGATION - GỘP VẬT TƯ
+    material_summary = {}
+    
+    for record in detail_records:
+        id_sap = record['id_sap']
+        quantity = float(record['quantity']) if record['quantity'] else 0.0
+        
+        # Parse giá mới nhất
+        latest_price = get_latest_material_price(record['material_subprice'])
+        
+        if id_sap not in material_summary:
+            material_summary[id_sap] = {
+                'id_sap': id_sap,
+                'material_name': record['material_name'],
+                'material_group': record['material_group'],
+                'material_subgroup': record['material_subgroup'],
+                'unit': record['material_unit'],
+                'total_quantity': 0.0,
+                'unit_price': latest_price,
+                'total_cost': 0.0,
+                'used_in_products': []
+            }
+        
+        # Cộng dồn số lượng
+        material_summary[id_sap]['total_quantity'] += quantity
+        material_summary[id_sap]['used_in_products'].append(
+            f"{record['product_name']} ({quantity} {record['pm_unit']})"
+        )
+    
+    # Tính thành tiền
+    for mat_id, mat_data in material_summary.items():
+        mat_data['total_cost'] = mat_data['total_quantity'] * mat_data['unit_price']
+    
+    # 4. TẠO EXCEL FILE
+    wb = Workbook()
+    
+    # --- SHEET 1: OVERVIEW (Danh sách SP đã chọn) ---
+    ws_overview = wb.active
+    ws_overview.title = "Overview"
+    
+    # Header styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    
+    # Headers
+    overview_headers = ["STT", "Mã SP", "Tên Sản Phẩm", "Danh Mục", "Dự Án"]
+    for col_idx, header in enumerate(overview_headers, 1):
+        cell = ws_overview.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Data rows
+    for idx, prod in enumerate(selected_products, 1):
+        ws_overview.append([
+            idx,
+            prod['headcode'],
+            prod['product_name'],
+            f"{prod.get('category', '')} - {prod.get('sub_category', '')}",
+            prod.get('project', '')
+        ])
+    
+    # Auto-adjust column width
+    for col in ws_overview.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_overview.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # --- SHEET 2: MATERIAL SUMMARY (Tổng hợp vật tư) ---
+    ws_summary = wb.create_sheet("Material Summary")
+    
+    summary_headers = [
+        "STT", "Mã SAP", "Tên Vật Liệu", "Nhóm", 
+        "Nhóm Con", "Đơn Vị", "Tổng SL", "Đơn Giá (VNĐ)", "Thành Tiền (VNĐ)"
+    ]
+    
+    for col_idx, header in enumerate(summary_headers, 1):
+        cell = ws_summary.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Sort by total_cost DESC
+    sorted_materials = sorted(
+        material_summary.values(), 
+        key=lambda x: x['total_cost'], 
+        reverse=True
+    )
+    
+    total_cost_all = 0.0
+    
+    for idx, mat in enumerate(sorted_materials, 1):
+        ws_summary.append([
+            idx,
+            mat['id_sap'],
+            mat['material_name'],
+            mat['material_group'],
+            mat['material_subgroup'],
+            mat['unit'],
+            round(mat['total_quantity'], 2),
+            round(mat['unit_price'], 2),
+            round(mat['total_cost'], 2)
+        ])
+        total_cost_all += mat['total_cost']
+    
+    # TỔNG CỘNG ROW
+    summary_row = ws_summary.max_row + 1
+    ws_summary.cell(row=summary_row, column=7, value="TỔNG CỘNG:").font = Font(bold=True)
+    ws_summary.cell(row=summary_row, column=9, value=round(total_cost_all, 2)).font = Font(bold=True, color="FF0000")
+    
+    for col in ws_summary.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_summary.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # --- SHEET 3: DETAILS (Chi tiết theo SP) ---
+    ws_details = wb.create_sheet("Details")
+    
+    detail_headers = [
+        "Mã SP", "Tên SP", "Mã SAP", "Tên Vật Liệu", 
+        "Nhóm VL", "Số Lượng", "Đơn Vị", "Đơn Giá", "Thành Tiền"
+    ]
+    
+    for col_idx, header in enumerate(detail_headers, 1):
+        cell = ws_details.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    for record in detail_records:
+        quantity = float(record['quantity']) if record['quantity'] else 0.0
+        unit_price = get_latest_material_price(record['material_subprice'])
+        total_cost = quantity * unit_price
+        
+        ws_details.append([
+            record['headcode'],
+            record['product_name'],
+            record['id_sap'],
+            record['material_name'],
+            record['material_group'],
+            round(quantity, 2),
+            record['pm_unit'],
+            round(unit_price, 2),
+            round(total_cost, 2)
+        ])
+    
+    for col in ws_details.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_details.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # 5. SAVE TO BUFFER
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return buffer
+
