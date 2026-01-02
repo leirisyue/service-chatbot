@@ -951,7 +951,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         response += "\n---\n\n"
     
     if used_in_products and len(used_in_products) > 0:
-        response += f"🔗 **CÁC SẢN PHẨM SỬ DỤNG VẬT LIỆU NÀY:**\n\n"
+        response += f"INFO: **CÁC SẢN PHẨM SỬ DỤNG VẬT LIỆU NÀY:**\n\n"
         
         for idx, prod in enumerate(used_in_products[:10], 1):
             response += f"{idx}. **{prod['product_name']}** (`{prod['headcode']}`)\n"
