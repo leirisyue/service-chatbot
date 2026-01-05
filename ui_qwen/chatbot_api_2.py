@@ -14,6 +14,7 @@ import os
 import re
 import pandas as pd
 import io
+from .textfunc import (format_search_results)
 
 # ========================================
 # CONFIGURATION
@@ -27,7 +28,7 @@ DB_CONFIG = {
     "port": "5432"
 }
 
-GEMINI_API_KEY = "AIzaSyD-wRkviXIBRLkiLmXlm8DZZYTqj2fvrA4"
+GEMINI_API_KEY = "AIzaSyCcORIhGV4GbUP9wgSb6FyhzNSw9BUokZ8"
 genai.configure(api_key=GEMINI_API_KEY)
 
 app = FastAPI(title="AA Corporation Chatbot API", version="4.0")
@@ -328,7 +329,7 @@ Xác định:
 
 OUTPUT JSON ONLY:
 {{
-  "material_group": "...",
+    "material_group": "...",
   "material_subgroup": "..."
 }}
 """
@@ -415,11 +416,13 @@ def save_chat_history(session_id: str, user_message: str, bot_response: str,
 def get_latest_material_price(material_subprice_json: str) -> float:
     """Lấy giá mới nhất từ JSON lịch sử giá"""
     if not material_subprice_json:
+        print("⚠️ material_subprice_json is NULL/empty")
         return 0.0
     
     try:
         price_history = json.loads(material_subprice_json)
         if not price_history or not isinstance(price_history, list):
+            print(f"⚠️ Invalid price_history: {price_history}")
             return 0.0
         
         sorted_prices = sorted(
@@ -427,9 +430,11 @@ def get_latest_material_price(material_subprice_json: str) -> float:
             key=lambda x: x.get('date', '1900-01-01'), 
             reverse=True
         )
-        
-        return float(sorted_prices[0].get('price', 0))
+        result = float(sorted_prices[0].get('price', 0))
+        print(f"✅ Parsed price: {result} VNĐ")
+        return result
     except:
+        print(f"❌ Price parse error: {e}")
         return 0.0
 
 # ========================================
@@ -805,6 +810,7 @@ def search_materials_for_product(product_query: str, params: Dict):
             mat_dict = dict(mat)
             mat_dict['price'] = get_latest_material_price(mat['material_subprice'])
             mat_dict['used_in_products_list'] = mat['used_in_products'][:5]  # Top 5
+            mat_dict['relevance_score'] = mat['usage_count'] / max_usage if max_usage > 0 else 0.5
             materials_with_context.append(mat_dict)
         
         print(f"✅ Found {len(materials_with_context)} materials used in these products")
@@ -990,9 +996,9 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
 # ========================================
 
 def rerank_with_feedback(items: list, feedback_scores: Dict, 
-                         id_key: str = "headcode", boost_weight: float = 0.3):
+                         id_key: str = "headcode", boost_weight: float = 0.5):  # ← ✅ TĂNG từ 0.3 → 0.5
     """
-    🎯 Re-rank kết quả dựa trên feedback - V4.7 DEBUG
+    🎯 V5.6 - Boost weight tăng lên 0.5 để feedback có tác động mạnh hơn
     """
     if not feedback_scores:
         print("⚠️ Không có feedback scores để rerank")
@@ -1015,18 +1021,17 @@ def rerank_with_feedback(items: list, feedback_scores: Dict,
         # Normalize feedback score 0-1
         feedback_boost = (feedback_count / max_feedback) if max_feedback > 0 else 0
         
-        # Tính điểm hiện tại
+        # ✅ QUAN TRỌNG: Dùng 'similarity' (đã được set = personalized_score)
         current_score = item.get('similarity', item.get('relevance_score', 0.5))
         
-        # Kết hợp: weighted average
+        # ✅ Công thức mới: Boost weight cao hơn (0.5 thay vì 0.3)
         new_score = (1 - boost_weight) * current_score + boost_weight * feedback_boost
         
-        item['final_score'] = new_score
-        item['feedback_boost'] = feedback_boost
-        item['feedback_count'] = feedback_count
-        item['original_score'] = current_score
+        item['final_score'] = float(new_score)
+        item['feedback_boost'] = float(feedback_boost)
+        item['feedback_count'] = float(feedback_count)
+        item['original_score'] = float(current_score)
         
-        # Phân loại
         if feedback_count > 0:
             boosted_items.append(item)
             print(f"✅ BOOSTED: {item_id[:20]:20} | "
@@ -1036,16 +1041,12 @@ def rerank_with_feedback(items: list, feedback_scores: Dict,
         else:
             unchanged_items.append(item)
     
-    # Sort lại theo final_score
-    items.sort(key=lambda x: x.get('final_score', 0), reverse=True)
-    
     print(f"\n📈 Kết quả:")
     print(f"   - {len(boosted_items)} items được boost")
     print(f"   - {len(unchanged_items)} items không đổi")
     print(f"{'='*60}\n")
     
-    return items
-
+    return items  # Không sort ở đây, để search_products() sort sau
 # ========================================
 # THÊM VÀO chatbot_api.py SAU HÀM rerank_with_feedback
 # Dòng ~620
@@ -1058,51 +1059,51 @@ def rerank_with_feedback(items: list, feedback_scores: Dict,
 def apply_feedback_to_search(items: list, query: str, search_type: str, 
                              id_key: str = "headcode") -> list:
     """
-    🎯 V5.1 - Tăng threshold lên 0.85 để chỉ khớp query THỰC SỰ tương tự
+    🎯 V5.6 - Lưu original_rank TRƯỚC khi rerank
     """
     if not items:
         return items
     
-    # ✅ TĂNG threshold từ 0.7 → 0.85
-    feedback_scores = get_feedback_boost_for_query(
-        query, 
-        search_type,
-        similarity_threshold=0.85  # ✅ CHỈ KHỚP QUERY RẤT GIỐNG NHAU
-    )
-    
-    if not feedback_scores:
-        print("ℹ️ Không có feedback history phù hợp (similarity < 0.85)")
-        # Thêm metadata mặc định
-        for item in items:
-            item['has_feedback'] = False
-            item['feedback_count'] = 0
-            item['original_rank'] = items.index(item) + 1
-            item['final_rank'] = items.index(item) + 1
-        return items
-    
-    # Apply reranking
-    print(f"\n🎯 Áp dụng feedback ranking cho {len(items)} items...")
-    
-    # Lưu rank gốc
+    # ✅ LƯU ORIGINAL RANK (dựa trên personalized_score)
     for idx, item in enumerate(items):
         item['original_rank'] = idx + 1
     
-    # Rerank
+    # Get feedback scores
+    feedback_scores = get_feedback_boost_for_query(
+        query, 
+        search_type,
+        similarity_threshold=0.85
+    )
+    
+    if not feedback_scores:
+        print("ℹ️ Không có feedback history phù hợp")
+        for item in items:
+            item['has_feedback'] = False
+            item['feedback_count'] = 0
+            item['final_rank'] = items.index(item) + 1
+            item['final_score'] = item.get('similarity', 0.5)
+        return items
+    
+    print(f"\n🎯 Step 2: Feedback Ranking for {len(items)} items...")
+    
+    # Apply reranking
     reranked_items = rerank_with_feedback(
         items, 
         feedback_scores, 
         id_key=id_key, 
-        boost_weight=0.3
+        boost_weight=0.5  # ✅ Boost weight cao
     )
     
-    # Thêm final rank
+    # ✅ SORT theo final_score (search_products sẽ sort lại lần cuối)
+    reranked_items.sort(key=lambda x: x.get('final_score', 0), reverse=True)
+    
+    # Update final rank
     for idx, item in enumerate(reranked_items):
         item['final_rank'] = idx + 1
         item['has_feedback'] = item.get('feedback_count', 0) > 0
     
-    print(f"✅ Reranking hoàn tất\n")
+    print(f"✅ Feedback Ranking done\n")
     return reranked_items
-
 # ========================================
 # HOẶC LÀM THRESHOLD ĐỘNG (tùy chọn)
 # ========================================
@@ -1179,32 +1180,150 @@ def get_ranking_summary(items: list) -> dict:
 # PRODUCT FUNCTIONS
 # ========================================
 
-def format_search_results(results):
-    """Format results thành cấu trúc chuẩn"""
-    products = []
-    for row in results:
-        products.append({
-            "headcode": row["headcode"],
-            "product_name": row["product_name"],
-            "category": row.get("category"),
-            "sub_category": row.get("sub_category"),
-            "material_primary": row.get("material_primary"),
-            "project": row.get("project"),
-            "project_id": row.get("project_id"),
-            "similarity": round(1 - row["distance"], 3) if "distance" in row else None
-        })
-    return products
-
-def search_products(params: Dict):
-    """Multi-tier: HYBRID -> Vector -> Keyword"""
+def search_products(params: Dict, session_id: str = None):
+    """🔍 V5.9 - FIXED: Chỉ 1 lớp ranking, không overlap"""
     
-    # TIER 1: Thử Hybrid trước
     try:
         result = search_products_hybrid(params)
         if result.get("products"):
+            products = result["products"]
+            
+            # ========== STEP 1: BASE SCORES ==========
+            for product in products:
+                product['base_score'] = float(product.get('similarity', 0.5))
+            
+            # ========== STEP 2: PERSONALIZATION ==========
+            # ✅ CHỈ áp dụng nếu có session_id VÀ user có history
+            has_personalization = False
+            
+            if session_id:
+                print(f"\n🎯 Personalization for {session_id[:8]}...")
+                
+                # ✅ CHECK trước xem user có history không
+                conn = get_db()
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT COUNT(*) FROM user_preferences 
+                    WHERE session_id = %s
+                """, (session_id,))
+                history_count = cur.fetchone()[0]
+                conn.close()
+                
+                if history_count > 0:
+                    has_personalization = True
+                    print(f"   ✅ Found {history_count} interactions")
+                    
+                    for product in products:
+                        conn = get_db()
+                        cur = conn.cursor(cursor_factory=RealDictCursor)
+                        
+                        cur.execute("""
+                            SELECT description_embedding 
+                            FROM products 
+                            WHERE headcode = %s AND description_embedding IS NOT NULL
+                        """, (product['headcode'],))
+                        
+                        vec_result = cur.fetchone()
+                        conn.close()
+                        
+                        if vec_result and vec_result['description_embedding']:
+                            personal_score = calculate_personalized_score(
+                                vec_result['description_embedding'],
+                                session_id
+                            )
+                            product['personal_score'] = float(personal_score)
+                        else:
+                            product['personal_score'] = 0.5
+                else:
+                    print(f"   ℹ️ No history - Skip personalization")
+            
+            # ✅ Nếu không có personalization → set neutral 0.5
+            if not has_personalization:
+                for product in products:
+                    product['personal_score'] = 0.5
+            
+            print(f"✅ Personalization done\n")
+            
+            # ========== STEP 3: FEEDBACK SCORES ==========
+            print(f"🎯 Feedback Scoring...")
+            
+            feedback_dict = get_feedback_boost_for_query(
+                params.get("keywords_vector", ""),
+                search_type="product",
+                similarity_threshold=0.85
+            )
+            
+            max_feedback = max(feedback_dict.values()) if feedback_dict else 1.0
+            
+            for product in products:
+                headcode = product.get('headcode')
+                raw_feedback = feedback_dict.get(headcode, 0)
+                
+                product['feedback_score'] = float(raw_feedback / max_feedback) if max_feedback > 0 else 0.0
+                product['feedback_count'] = float(raw_feedback)
+            
+            print(f"✅ Feedback Scoring done\n")
+            
+            # ========== STEP 4: WEIGHTED SUM ==========
+            print(f"🎯 Final Ranking (Weighted Sum)...")
+            
+            # ✅ ADAPTIVE WEIGHTS
+            if has_personalization:
+                # User có history → ưu tiên personalization
+                W_BASE = 0.3
+                W_PERSONAL = 0.5
+                W_FEEDBACK = 0.2
+            else:
+                # User mới → ưu tiên base + social proof
+                W_BASE = 0.6
+                W_PERSONAL = 0.0  # ❌ KHÔNG dùng personal_score
+                W_FEEDBACK = 0.4
+            
+            for idx, product in enumerate(products):
+                base = product.get('base_score', 0.5)
+                personal = product.get('personal_score', 0.5)
+                feedback = product.get('feedback_score', 0.0)
+                
+                # ✅ Chỉ tính personal nếu has_personalization
+                if has_personalization:
+                    final_score = (W_BASE * base) + (W_PERSONAL * personal) + (W_FEEDBACK * feedback)
+                else:
+                    final_score = (W_BASE * base) + (W_FEEDBACK * feedback)
+                
+                product['final_score'] = float(final_score)
+                product['original_rank'] = idx + 1
+                
+                print(f"  {product['headcode']}: "
+                      f"base={base:.3f} | pers={personal:.3f} | fb={feedback:.3f} "
+                      f"→ final={final_score:.3f}")
+            
+            # ========== STEP 5: SORT FINAL ==========
+            products.sort(key=lambda x: x.get('final_score', 0), reverse=True)
+            
+            for idx, product in enumerate(products):
+                product['final_rank'] = idx + 1
+                
+                if product.get('feedback_count', 0) > 0:
+                    product['has_feedback'] = True
+            
+            print(f"✅ Final Ranking complete\n")
+            
+            result["products"] = products
+            result["ranking_summary"] = get_ranking_summary(products)
+            result["can_provide_feedback"] = True
+            
             return result
+            
     except Exception as e:
         print(f"⚠️ TIER 1 failed: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # TIER 2 & 3: Giữ nguyên code cũ (Fallback)
+    # ...
+    
+    # TIER 2 & 3: Giữ nguyên...
+    # (code cũ không đổi)
     
     # TIER 2 & 3: GIỮ NGUYÊN CODE CŨ (Fallback)
     conn = get_db()
@@ -1369,7 +1488,9 @@ def get_product_materials(headcode: str):
             'image_url': mat['image_url'],
             'quantity': quantity,
             'pm_unit': mat['pm_unit'],
+            'price': latest_price,
             'unit_price': latest_price,
+            'unit': mat['material_unit'],
             'total_cost': total_cost,
             'price_history': mat['material_subprice']
         })
@@ -1656,7 +1777,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         return {"response": f"❌ Không tìm thấy vật liệu **{id_sap or material_name}**"}
     
     latest_price = get_latest_material_price(material['material_subprice'])
-    
+
     sql = """
         SELECT 
             p.headcode,
@@ -1765,13 +1886,19 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     
     return {
         "response": response,
-        "material_detail": dict(material),
+        # "material_detail": dict(material),
+        "materials": [{  # ✅ Đổi thành list giống search_materials
+        **dict(material),
+        'price': latest_price  # ✅ Thêm key 'price'
+    }],
         "latest_price": latest_price,
         "price_history": price_history,
         "used_in_products": [dict(p) for p in used_in_products],
         "stats": dict(stats) if stats else {},
         "has_image": bool(material.get('image_url'))
     }
+
+
 
 def list_material_groups():
     """Liệt kê các nhóm vật liệu với giá tính từ material_subprice"""
@@ -1862,6 +1989,7 @@ def chat(msg: ChatMessage):
                            "• 💰 **Tính chi phí** sản phẩm\n"
                            "• 📋 **Xem định mức** nguyên vật liệu\n\n"
                            "Bạn cần tìm gì hôm nay?",
+                
                 "suggested_prompts": [
                     "🔍 Tìm sản phẩm", 
                     "🧱 Tìm nguyên vật liệu", 
@@ -1907,26 +2035,26 @@ def chat(msg: ChatMessage):
         
         # PRODUCT FLOW - CẬP NHẬT V4.8 (Feedback Ranking)
 
+
+
+
         elif intent == "search_product":
-            search_result = search_products(params)
+            search_result = search_products(params, session_id=msg.session_id)
             products = search_result.get("products", [])
             
-            # ✅ THÊM: Áp dụng feedback ranking
-            products = apply_feedback_to_search(
-                products, 
-                user_message,
-                search_type="product",
-                id_key="headcode"
-            )
+            # ✅ search_products đã xử lý HẾT ranking rồi, không cần gọi gì thêm
             
-            # ✅ THÊM: Lấy ranking summary
-            ranking_summary = get_ranking_summary(products)
-            
+            ranking_summary = search_result.get("ranking_summary", {})
             result_count = len(products)
             
             if not products:
                 result_response = {"response": search_result.get("response", "Không tìm thấy sản phẩm.")}
             else:
+
+
+
+
+
                 response_text = ""
                 suggested_prompts = []
                 
@@ -2003,57 +2131,68 @@ def chat(msg: ChatMessage):
                     }
 
         
-
+    
 
 
         # CROSS-TABLE: Tìm vật liệu cho sản phẩm
-        # elif intent == "search_material_for_product":
-        #     product_query = params.get("category") or params.get("usage_context") or params.get("keywords_vector")
+        elif intent == "search_material_for_product":
+            # 1. Lấy query từ params hoặc context
+            product_query = params.get("category") or params.get("usage_context") or params.get("keywords_vector")
             
-        #     if not product_query:
-        #         result_response = {
-        #             "response": "⚠️ Bạn muốn tìm vật liệu để làm sản phẩm gì?",
-        #             "suggested_prompts": [
-        #                 "🧱 Vật liệu làm bàn ăn",
-        #                 "🧱 Nguyên liệu ghế sofa",
-        #                 "🧱 Đá làm bàn coffee"
-        #             ]
-        #         }
-        #     else:
-        #         search_result = search_materials_for_product(product_query, params)
-        #         materials = search_result.get("materials", [])
+            if not product_query:
+                result_response = {
+                    "response": "⚠️ Bạn muốn tìm vật liệu để làm sản phẩm gì?",
+                    "suggested_prompts": [
+                        "🧱 Vật liệu làm bàn ăn",
+                        "🧱 Nguyên liệu ghế sofa",
+                        "🧱 Đá làm bàn coffee"
+                    ]
+                }
+            else:
+                # 2. Gọi hàm tìm kiếm
+                search_result = search_materials_for_product(product_query, params)
+                materials = search_result.get("materials", [])
                 
-        #         feedback_scores = get_feedback_boost_for_query(user_message, "material")
-        #         if feedback_scores:
-        #             materials = rerank_with_feedback(materials, feedback_scores, "id_sap")
+                # 3. [MỚI] Áp dụng Feedback Ranking (Giống Intent 3)
+                # Dùng query gốc của user để tìm feedback tương tự
+                feedback_scores = get_feedback_boost_for_query(user_message, "material")
+                if feedback_scores:
+                    materials = rerank_with_feedback(materials, feedback_scores, "id_sap")
                 
-        #         result_count = len(materials)
+                # 4. [MỚI] Lấy thông tin Ranking Summary để hiển thị UI
+                ranking_summary = get_ranking_summary(materials)
                 
-        #         if not materials:
-        #             result_response = {
-        #                 "response": "Không tìm thấy vật liệu phù hợp.",
-        #                 "materials": []
-        #             }
-        #         else:
-        #             explanation = search_result.get("explanation", "")
+                result_count = len(materials)
+                
+                if not materials:
+                    result_response = {
+                        "response": "Không tìm thấy vật liệu phù hợp.",
+                        "materials": []
+                    }
+                else:
+                    explanation = search_result.get("explanation", "")
                     
-        #             response_text = f"✅ {explanation}\n\n"
-        #             response_text += f"🧱 Tìm thấy **{len(materials)} vật liệu** thường dùng:\n\n"
+                    response_text = f"✅ {explanation}\n\n"
                     
-        #             for idx, mat in enumerate(materials[:5], 1):
-        #                 response_text += f"{idx}. **{mat['material_name']}**\n"
-        #                 response_text += f"   • Nhóm: {mat['material_group']}\n"
-        #                 response_text += f"   • Giá: {mat.get('price', 0):,.0f} VNĐ/{mat.get('unit', '')}\n"
-        #                 response_text += f"   • Dùng trong {mat.get('usage_count', 0)} sản phẩm\n\n"
+                    # Hiển thị thông báo nếu có Ranking
+                    if ranking_summary['ranking_applied']:
+                         response_text += f"⭐ **{ranking_summary['boosted_items']} vật liệu** được ưu tiên dựa trên lịch sử.\n\n"
+                         
+                    response_text += f"🧱 Tìm thấy **{len(materials)} vật liệu** thường dùng:\n\n"
                     
-        #             result_response = {
-        #                 "response": response_text,
-        #                 "materials": materials,
-        #                 "search_method": "cross_table",
-        #                 "can_provide_feedback": True
-        #             }
-
-
+                    for idx, mat in enumerate(materials[:5], 1):
+                        response_text += f"{idx}. **{mat['material_name']}**\n"
+                        response_text += f"   • Nhóm: {mat['material_group']}\n"
+                        response_text += f"   • Giá: {mat.get('price', 0):,.0f} VNĐ/{mat.get('unit', '')}\n"
+                        response_text += f"   • Dùng trong {mat.get('usage_count', 0)} sản phẩm\n\n"
+                    
+                    result_response = {
+                        "response": response_text,
+                        "materials": materials,
+                        "search_method": "cross_table_product_to_material", # Đánh dấu để UI nhận biết
+                        "ranking_summary": ranking_summary,   # Truyền xuống UI
+                        "can_provide_feedback": True          # Bật nút Feedback
+                    }
 
         
 
@@ -2270,7 +2409,8 @@ def chat(msg: ChatMessage):
         )
 
 
-
+        if result_response:
+            result_response["query"] = user_message 
 
         return result_response
     
@@ -2280,7 +2420,725 @@ def chat(msg: ChatMessage):
         traceback.print_exc()
         return {"response": f"⚠️ Lỗi hệ thống: {str(e)}"}
 
+# ========================================
+# BATCH OPERATIONS FOR MULTIPLE PRODUCTS
+# ========================================
 
+class BatchProductRequest(BaseModel):
+    product_headcodes: List[str]
+    session_id: str = ""
+    operation: str  # "detail", "materials", "cost"
+
+@app.post("/batch/products")
+def batch_product_operations(request: BatchProductRequest):
+    """
+    🔥 Xử lý batch operations cho nhiều sản phẩm
+    Operations: detail, materials, cost
+    """
+    try:
+        if not request.product_headcodes:
+            return {"response": "⚠️ Vui lòng chọn ít nhất 1 sản phẩm"}
+        
+        headcodes = request.product_headcodes
+        operation = request.operation
+        
+        print(f"📦 Batch {operation}: {len(headcodes)} products")
+        
+        # ========== OPERATION: CHI TIẾT SẢN PHẨM ==========
+        if operation == "detail":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cur.execute("""
+                SELECT headcode, product_name, category, sub_category, 
+                       material_primary, project, unit
+                FROM products
+                WHERE headcode = ANY(%s)
+                ORDER BY product_name
+            """, (headcodes,))
+            
+            products = cur.fetchall()
+            conn.close()
+            
+            if not products:
+                return {"response": "❌ Không tìm thấy sản phẩm"}
+            
+            response = f"📋 **CHI TIẾT {len(products)} SẢN PHẨM:**\n\n"
+            
+            for idx, prod in enumerate(products, 1):
+                response += f"**{idx}. {prod['product_name']}**\n"
+                response += f"   • Mã: `{prod['headcode']}`\n"
+                response += f"   • Danh mục: {prod.get('category', 'N/A')}"
+                
+                if prod.get('sub_category'):
+                    response += f" - {prod['sub_category']}"
+                
+                response += f"\n   • Vật liệu chính: {prod.get('material_primary', 'N/A')}\n"
+                
+                if prod.get('project'):
+                    response += f"   • Dự án: {prod['project']}\n"
+                
+                response += "\n"
+            
+            return {
+                "response": response,
+                "products": [dict(p) for p in products]
+            }
+        
+        # ========== OPERATION: ĐỊNH MỨC VẬT LIỆU ==========
+        elif operation == "materials":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            # Lấy tất cả vật liệu của các sản phẩm
+            cur.execute("""
+                SELECT 
+                    p.headcode,
+                    p.product_name,
+                    m.id_sap,
+                    m.material_name,
+                    m.material_group,
+                    m.material_subprice,
+                    m.unit,
+                    pm.quantity,
+                    pm.unit as pm_unit
+                FROM product_materials pm
+                INNER JOIN products p ON pm.product_headcode = p.headcode
+                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                WHERE p.headcode = ANY(%s)
+                ORDER BY p.product_name, m.material_name
+            """, (headcodes,))
+            
+            records = cur.fetchall()
+            conn.close()
+            
+            if not records:
+                return {"response": "⚠️ Các sản phẩm này chưa có định mức vật liệu"}
+            
+            # Group by product
+            products_dict = {}
+            for rec in records:
+                hc = rec['headcode']
+                if hc not in products_dict:
+                    products_dict[hc] = {
+                        'headcode': hc,
+                        'product_name': rec['product_name'],
+                        'materials': []
+                    }
+                
+                price = get_latest_material_price(rec['material_subprice'])
+                qty = float(rec['quantity']) if rec['quantity'] else 0.0
+                
+                products_dict[hc]['materials'].append({
+                    'id_sap': rec['id_sap'],
+                    'name': rec['material_name'],
+                    'group': rec['material_group'],
+                    'quantity': qty,
+                    'unit': rec['pm_unit'],
+                    'price': price,
+                    'total': qty * price
+                })
+            
+            # Tạo response
+            response = f"🧱 **ĐỊNH MỨC VẬT LIỆU - {len(products_dict)} SẢN PHẨM:**\n\n"
+            
+            for prod_data in products_dict.values():
+                response += f"### 📦 {prod_data['product_name']} (`{prod_data['headcode']}`)\n\n"
+                
+                total_cost = sum(m['total'] for m in prod_data['materials'])
+                
+                for idx, mat in enumerate(prod_data['materials'][:10], 1):
+                    response += f"{idx}. **{mat['name']}** ({mat['group']})\n"
+                    response += f"   • Số lượng: {mat['quantity']} {mat['unit']}\n"
+                    response += f"   • Đơn giá: {mat['price']:,.0f} VNĐ\n"
+                    response += f"   • Thành tiền: **{mat['total']:,.0f} VNĐ**\n\n"
+                
+                if len(prod_data['materials']) > 10:
+                    response += f"*...và {len(prod_data['materials'])-10} vật liệu khác*\n\n"
+                
+                response += f"💰 **Tổng NVL ({prod_data['headcode']}): {total_cost:,.0f} VNĐ**\n\n"
+                response += "---\n\n"
+            
+            # Tạo materials list để UI có thể render cards
+            all_materials = []
+            for prod_data in products_dict.values():
+                all_materials.extend(prod_data['materials'])
+            
+            return {
+                "response": response,
+                "products_materials": products_dict,
+                "materials": all_materials  # Để UI render material cards
+            }
+        
+        # ========== OPERATION: CHI PHÍ ==========
+        elif operation == "cost":
+            conn = get_db()
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            
+            cur.execute("""
+                SELECT 
+                    p.headcode,
+                    p.product_name,
+                    p.category,
+                    m.material_name,
+                    m.material_group,
+                    m.material_subprice,
+                    pm.quantity,
+                    pm.unit
+                FROM product_materials pm
+                INNER JOIN products p ON pm.product_headcode = p.headcode
+                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                WHERE p.headcode = ANY(%s)
+                ORDER BY p.product_name
+            """, (headcodes,))
+            
+            records = cur.fetchall()
+            conn.close()
+            
+            if not records:
+                return {"response": "⚠️ Không có dữ liệu định mức"}
+            
+            # Tính chi phí từng sản phẩm
+            products_cost = {}
+            for rec in records:
+                hc = rec['headcode']
+                if hc not in products_cost:
+                    products_cost[hc] = {
+                        'headcode': hc,
+                        'name': rec['product_name'],
+                        'category': rec['category'],
+                        'material_cost': 0.0,
+                        'materials_detail': []
+                    }
+                
+                qty = float(rec['quantity']) if rec['quantity'] else 0.0
+                price = get_latest_material_price(rec['material_subprice'])
+                total = qty * price
+                
+                products_cost[hc]['material_cost'] += total
+                products_cost[hc]['materials_detail'].append({
+                    'name': rec['material_name'],
+                    'group': rec['material_group'],
+                    'quantity': qty,
+                    'unit': rec['unit'],
+                    'price': price,
+                    'total': total
+                })
+            
+            # Response
+            response = f"💰 **BÁO CÁO CHI PHÍ - {len(products_cost)} SẢN PHẨM:**\n\n"
+            
+            grand_total = 0.0
+            
+            for prod_data in products_cost.values():
+                response += f"### 📦 {prod_data['name']} (`{prod_data['headcode']}`)\n"
+                response += f"**Danh mục:** {prod_data['category']}\n\n"
+                response += f"**Chi phí nguyên vật liệu:** {prod_data['material_cost']:,.0f} VNĐ\n"
+                response += f"   • {len(prod_data['materials_detail'])} loại vật liệu\n\n"
+                response += "---\n\n"
+                
+                grand_total += prod_data['material_cost']
+            
+            response += f"## 💵 TỔNG CHI PHÍ NVL: {grand_total:,.0f} VNĐ\n\n"
+            response += "📋 *Chi phí được tính từ giá nguyên vật liệu gần nhất*"
+            
+            return {
+                "response": response,
+                "products_cost": products_cost,
+                "grand_total": grand_total
+            }
+        
+        else:
+            return {"response": "❌ Operation không hợp lệ"}
+    
+    except Exception as e:
+        print(f"❌ Batch operation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"response": f"❌ Lỗi: {str(e)}"}
+# ========================================
+# MODULE 1: CONSOLIDATED BOM REPORT
+# ========================================
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.dataframe import dataframe_to_rows
+
+class ConsolidatedBOMRequest(BaseModel):
+    product_headcodes: List[str]
+    session_id: str = ""
+
+import re  # <--- Thêm cái này
+from io import BytesIO
+from typing import List
+from openpyxl import Workbook
+from openpyxl.styles import PatternFill, Font, Alignment
+
+# --- TỰ ĐỊNH NGHĨA REGEX ĐỂ LỌC KÝ TỰ LỖI ---
+# Regex này lọc các ký tự ASCII điều khiển (Control chars) không hợp lệ trong file Excel (XML)
+# Bao gồm: ASCII 0-8, 11-12, 14-31
+ILLEGAL_CHARACTERS_RE = re.compile(r'[\000-\010]|[\013-\014]|[\016-\037]')
+
+def generate_consolidated_report(product_headcodes: List[str]) -> BytesIO:
+    """
+    Tạo báo cáo Excel tổng hợp định mức vật tư cho nhiều sản phẩm
+    
+    Args:
+        product_headcodes: Danh sách mã sản phẩm
+    
+    Returns:
+        BytesIO: File Excel buffer
+    """
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # 1. LẤY THÔNG TIN SẢN PHẨM
+    cur.execute("""
+        SELECT headcode, product_name, category, sub_category, project
+        FROM products 
+        WHERE headcode = ANY(%s)
+        ORDER BY product_name
+    """, (product_headcodes,))
+    
+    selected_products = cur.fetchall()
+    
+    if not selected_products:
+        raise ValueError("Không tìm thấy sản phẩm nào")
+    
+    # 2. LẤY ĐỊNH MỨC CHI TIẾT (Flatten View)
+    cur.execute("""
+        SELECT 
+            p.headcode,
+            p.product_name,
+            m.id_sap,
+            m.material_name,
+            m.material_group,
+            m.material_subgroup,
+            m.unit as material_unit,
+            pm.quantity,
+            pm.unit as pm_unit,
+            m.material_subprice
+        FROM product_materials pm
+        INNER JOIN products p ON pm.product_headcode = p.headcode
+        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+        WHERE p.headcode = ANY(%s)
+        ORDER BY p.product_name, m.material_name
+    """, (product_headcodes,))
+    
+    detail_records = cur.fetchall()
+    conn.close()
+    
+    if not detail_records:
+        raise ValueError("Các sản phẩm này chưa có định mức vật tư")
+    
+    # 3. AGGREGATION - GỘP VẬT TƯ
+    material_summary = {}
+    
+    for record in detail_records:
+        id_sap = record['id_sap']
+        quantity = float(record['quantity']) if record['quantity'] else 0.0
+        
+        # Parse giá mới nhất
+        latest_price = get_latest_material_price(record['material_subprice'])
+        
+        if id_sap not in material_summary:
+            material_summary[id_sap] = {
+                'id_sap': id_sap,
+                'material_name': record['material_name'],
+                'material_group': record['material_group'],
+                'material_subgroup': record['material_subgroup'],
+                'unit': record['material_unit'],
+                'total_quantity': 0.0,
+                'unit_price': latest_price,
+                'total_cost': 0.0,
+                'used_in_products': []
+            }
+        
+        # Cộng dồn số lượng
+        material_summary[id_sap]['total_quantity'] += quantity
+        material_summary[id_sap]['used_in_products'].append(
+            f"{record['product_name']} ({quantity} {record['pm_unit']})"
+        )
+    
+    # Tính thành tiền
+    for mat_id, mat_data in material_summary.items():
+        mat_data['total_cost'] = mat_data['total_quantity'] * mat_data['unit_price']
+    
+    # 4. TẠO EXCEL FILE
+    wb = Workbook()
+    
+    # --- SHEET 1: OVERVIEW (Danh sách SP đã chọn) ---
+    ws_overview = wb.active
+    ws_overview.title = "Overview"
+    
+    # Header styling
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=12)
+    
+    # Headers
+    overview_headers = ["STT", "Mã SP", "Tên Sản Phẩm", "Danh Mục", "Dự Án"]
+    for col_idx, header in enumerate(overview_headers, 1):
+        cell = ws_overview.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Data rows
+    for idx, prod in enumerate(selected_products, 1):
+        ws_overview.append([
+            idx,
+            prod['headcode'],
+            prod['product_name'],
+            f"{prod.get('category', '')} - {prod.get('sub_category', '')}",
+            prod.get('project', '')
+        ])
+    
+    # Auto-adjust column width
+    for col in ws_overview.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_overview.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # --- SHEET 2: MATERIAL SUMMARY (Tổng hợp vật tư) ---
+    ws_summary = wb.create_sheet("Material Summary")
+    
+    summary_headers = [
+        "STT", "Mã SAP", "Tên Vật Liệu", "Nhóm", 
+        "Nhóm Con", "Đơn Vị", "Tổng SL", "Đơn Giá (VNĐ)", "Thành Tiền (VNĐ)"
+    ]
+    
+    for col_idx, header in enumerate(summary_headers, 1):
+        cell = ws_summary.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Sort by total_cost DESC
+    sorted_materials = sorted(
+        material_summary.values(), 
+        key=lambda x: x['total_cost'], 
+        reverse=True
+    )
+    
+    total_cost_all = 0.0
+    
+    for idx, mat in enumerate(sorted_materials, 1):
+        ws_summary.append([
+            idx,
+            mat['id_sap'],
+            mat['material_name'],
+            mat['material_group'],
+            mat['material_subgroup'],
+            mat['unit'],
+            round(mat['total_quantity'], 2),
+            round(mat['unit_price'], 2),
+            round(mat['total_cost'], 2)
+        ])
+        total_cost_all += mat['total_cost']
+    
+    # TỔNG CỘNG ROW
+    summary_row = ws_summary.max_row + 1
+    ws_summary.cell(row=summary_row, column=7, value="TỔNG CỘNG:").font = Font(bold=True)
+    ws_summary.cell(row=summary_row, column=9, value=round(total_cost_all, 2)).font = Font(bold=True, color="FF0000")
+    
+    for col in ws_summary.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_summary.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # --- SHEET 3: DETAILS (Chi tiết theo SP) ---
+    ws_details = wb.create_sheet("Details")
+    
+    detail_headers = [
+        "Mã SP", "Tên SP", "Mã SAP", "Tên Vật Liệu", 
+        "Nhóm VL", "Số Lượng", "Đơn Vị", "Đơn Giá", "Thành Tiền"
+    ]
+    
+    for col_idx, header in enumerate(detail_headers, 1):
+        cell = ws_details.cell(row=1, column=col_idx, value=header)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    
+    for record in detail_records:
+        quantity = float(record['quantity']) if record['quantity'] else 0.0
+        unit_price = get_latest_material_price(record['material_subprice'])
+        total_cost = quantity * unit_price
+        
+        ws_details.append([
+            record['headcode'],
+            record['product_name'],
+            record['id_sap'],
+            record['material_name'],
+            record['material_group'],
+            round(quantity, 2),
+            record['pm_unit'],
+            round(unit_price, 2),
+            round(total_cost, 2)
+        ])
+    
+    for col in ws_details.columns:
+        max_length = max(len(str(cell.value or "")) for cell in col)
+        ws_details.column_dimensions[col[0].column_letter].width = min(max_length + 2, 50)
+    
+    # 5. SAVE TO BUFFER
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return buffer
+
+
+@app.post("/report/consolidated")
+def create_consolidated_report(request: ConsolidatedBOMRequest):
+    """
+    📊 API Endpoint tạo báo cáo tổng hợp định mức vật tư
+    
+    Input: {"product_headcodes": ["B001", "B002", "G001"], "session_id": "..."}
+    Output: File Excel (.xlsx)
+    """
+    try:
+        if not request.product_headcodes or len(request.product_headcodes) == 0:
+            return {"message": "⚠️ Vui lòng chọn ít nhất 1 sản phẩm"}
+        
+        print(f"📊 Generating report for {len(request.product_headcodes)} products...")
+        
+        # Tạo file Excel
+        excel_buffer = generate_consolidated_report(request.product_headcodes)
+        
+        # Lưu lịch sử (Optional)
+        if request.session_id:
+            save_chat_history(
+                session_id=request.session_id,
+                user_message=f"[REPORT] Tổng hợp {len(request.product_headcodes)} sản phẩm",
+                bot_response="Đã tạo báo cáo Excel",
+                intent="generate_report",
+                params={"products": request.product_headcodes},
+                result_count=len(request.product_headcodes),
+                search_type="report"
+            )
+        
+        # Trả file về client
+        from fastapi.responses import StreamingResponse
+        
+        filename = f"BOM_Consolidated_{len(request.product_headcodes)}SP_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        
+        return StreamingResponse(
+            excel_buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except ValueError as e:
+        return {"message": f"❌ {str(e)}"}
+    except Exception as e:
+        print(f"❌ Report generation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return {"message": f"❌ Lỗi tạo báo cáo: {str(e)}"}
+
+
+# ========================================
+# MODULE 2: ADAPTIVE USER LEARNING
+# ========================================
+
+import numpy as np
+
+class TrackingRequest(BaseModel):
+    session_id: str
+    product_headcode: str
+    interaction_type: str  # 'view', 'reject', 'select'
+
+@app.post("/track/view")
+def track_product_view(request: TrackingRequest):
+    """
+    👁️ Track khi user XEM CHI TIẾT sản phẩm (Positive Signal)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Lấy embedding của sản phẩm
+        cur.execute("""
+            SELECT description_embedding 
+            FROM products 
+            WHERE headcode = %s AND description_embedding IS NOT NULL
+        """, (request.product_headcode,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            conn.close()
+            return {"message": "Product not found or no embedding"}
+        
+        product_vector = result['description_embedding']
+        
+        # Lưu vào user_preferences
+        cur.execute("""
+            INSERT INTO user_preferences 
+            (session_id, product_headcode, product_vector, interaction_type, weight)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            request.session_id,
+            request.product_headcode,
+            product_vector,
+            'view',
+            1.0  # Positive signal
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"✅ Tracked VIEW: {request.product_headcode} by {request.session_id[:8]}")
+        
+        return {"message": "✅ Tracked successfully", "type": "view"}
+        
+    except Exception as e:
+        print(f"❌ Tracking error: {e}")
+        return {"message": f"Error: {str(e)}"}
+
+
+@app.post("/track/reject")
+def track_product_reject(request: TrackingRequest):
+    """
+    ❌ Track khi user BỎ QUA/REJECT sản phẩm (Negative Signal)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        cur.execute("""
+            SELECT description_embedding 
+            FROM products 
+            WHERE headcode = %s AND description_embedding IS NOT NULL
+        """, (request.product_headcode,))
+        
+        result = cur.fetchone()
+        
+        if not result:
+            conn.close()
+            return {"message": "Product not found"}
+        
+        product_vector = result['description_embedding']
+        
+        cur.execute("""
+            INSERT INTO user_preferences 
+            (session_id, product_headcode, product_vector, interaction_type, weight)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (
+            request.session_id,
+            request.product_headcode,
+            product_vector,
+            'reject',
+            -1.0  # Negative signal
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"❌ Tracked REJECT: {request.product_headcode} by {request.session_id[:8]}")
+        
+        return {"message": "✅ Tracked rejection", "type": "reject"}
+        
+    except Exception as e:
+        print(f"❌ Tracking error: {e}")
+        return {"message": f"Error: {str(e)}"}
+
+
+# PERSONALIZATION - REFACTORED V5.7
+# ========================================
+
+def calculate_personalized_score(
+    candidate_vector: list, 
+    session_id: str
+) -> float:
+    """
+    🎯 V5.7 - Trả về điểm Personalization RIÊNG (0.0 → 1.0)
+    KHÔNG trả về final_score, để search_products tổng hợp sau
+    
+    Returns:
+        float: Personal affinity score (0.0 = không khớp, 1.0 = rất khớp)
+    """
+    try:
+        conn = get_db()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Lấy 10 interactions gần nhất
+        cur.execute("""
+            SELECT product_vector, weight
+            FROM user_preferences
+            WHERE session_id = %s
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, (session_id,))
+        
+        history = cur.fetchall()
+        conn.close()
+        
+        if not history:
+            return 0.5  # Neutral score khi chưa có history
+        
+        # Convert candidate sang numpy
+        if isinstance(candidate_vector, str):
+            candidate_np = np.array(json.loads(candidate_vector), dtype=np.float32)
+        else:
+            candidate_np = np.array(candidate_vector, dtype=np.float32)
+        
+        positive_scores = []
+        negative_scores = []
+        
+        for record in history:
+            try:
+                vec_data = record['product_vector']
+                
+                if vec_data is None:
+                    continue
+                    
+                # Parse vector
+                if isinstance(vec_data, str):
+                    hist_vector = np.array(json.loads(vec_data), dtype=np.float32)
+                elif isinstance(vec_data, list):
+                    hist_vector = np.array(vec_data, dtype=np.float32)
+                else:
+                    continue
+                
+                # Check dimension match
+                if len(hist_vector) != len(candidate_np):
+                    continue
+                
+                # Cosine Similarity
+                norm_product = np.linalg.norm(candidate_np) * np.linalg.norm(hist_vector)
+                if norm_product < 1e-8:
+                    continue
+                    
+                similarity = np.dot(candidate_np, hist_vector) / norm_product
+                
+                # Phân loại theo weight
+                if record['weight'] > 0:
+                    positive_scores.append(similarity)
+                else:
+                    negative_scores.append(similarity)
+                    
+            except Exception:
+                continue
+        
+        # Fallback nếu không có scores hợp lệ
+        if not positive_scores and not negative_scores:
+            return 0.5
+        
+        # Tính điểm affinity thuần túy
+        positive_affinity = np.mean(positive_scores) if positive_scores else 0.0
+        negative_penalty = np.mean(negative_scores) if negative_scores else 0.0
+        
+        # Formula: Positive boost - Negative penalty
+        personal_score = positive_affinity - (negative_penalty * 0.5)
+        
+        # Clip về [0, 1]
+        personal_score = float(np.clip(personal_score, 0.0, 1.0))
+        
+        return personal_score
+        
+    except Exception as e:
+        print(f"⚠️ Personalization error: {e}")
+        return 0.5
 # ========================================
 # NEW ENDPOINT: USER FEEDBACK
 # ========================================

@@ -18,7 +18,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils.dataframe import dataframe_to_rows
 from PIL import Image
-from prettytable import PrettyTable
 from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
 
@@ -45,6 +44,28 @@ from .unit import (BatchProductRequest, ChatMessage, ConsolidatedBOMRequest,
 # Bao gồm: ASCII 0-8, 11-12, 14-31
 ILLEGAL_CHARACTERS_RE = re.compile(r'[\000-\010]|[\013-\014]|[\016-\037]')
 
+So_Cau_goi_y = 3  # Số câu gợi ý mặc định
+
+
+def build_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
+    """Tạo bảng Markdown từ header + rows để frontend HTML render + CSS đẹp.
+
+    Mỗi ô đã được format sẵn (ví dụ: số có dấu phẩy) trước khi truyền vào.
+    """
+    if not headers:
+        return ""
+
+    # Dòng header
+    header_row = "| " + " | ".join(str(h) for h in headers) + " |"
+    # Dòng căn lề cơ bản, frontend có thể dùng CSS để chỉnh tiếp
+    separator_row = "| " + " | ".join("---" for _ in headers) + " |"
+
+    body_rows = [
+        "| " + " | ".join(str(cell) for cell in row) + " |" for row in rows
+    ]
+
+    return "\n".join([header_row, separator_row] + body_rows)
+
 
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
@@ -64,7 +85,8 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
         Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh.
 
-        NGỮ CẢNH: {context_type}
+        NGỮ CẢNH: {context_type}.
+        cách xưng hô: tôi và bạn.
         """
 
     if context_type == "greeting":
@@ -88,7 +110,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         User vừa tìm: "{query}"
         Tìm thấy {len(products_info)} sản phẩm.
         Sản phẩm đầu tiên: {products_info[0].get('product_name', '')} ({products_info[0].get('headcode', '')})
-        Tạo 4 gợi ý HÀNH ĐỘNG TIẾP THEO:
+        Tạo {So_Cau_goi_y} gợi ý trong những HÀNH ĐỘNG TIẾP THEO:
         - Xem chi tiết/giá sản phẩm cụ thể
         - So sánh hoặc tìm tương tự
         - Hỏi về vật liệu/cấu tạo
@@ -105,7 +127,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         prompt += f"""
         User tìm quá rộng: "{query}"
         Cần thu hẹp phạm vi.
-        Tạo 4 câu hỏi GỢI Ý giúp user CỤ THỂ HÓA:
+        Tạo {So_Cau_goi_y} gợi ý trong những câu hỏi GỢI Ý giúp user CỤ THỂ HÓA:
         - Về mục đích sử dụng
         - Về phong cách/chất liệu
         - Về kích thước/không gian
@@ -121,7 +143,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         query = context_data.get("query", "")
         prompt += f"""
         User tìm: "{query}" - KHÔNG TÌM THẤY
-        Tạo 4 gợi ý GIẢI PHÁP:
+        Tạo {So_Cau_goi_y} gợi ý trong những GIẢI PHÁP:
         - Tìm từ khóa tương tự
         - Xem danh mục liên quan
         - Tư vấn sản phẩm thay thế
@@ -139,7 +161,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         User tìm vật liệu: "{query}"
         Tìm thấy {len(materials_info)} vật liệu.
         Vật liệu đầu: {materials_info[0].get('material_name', '')}
-        Tạo 4 gợi ý HÀNH ĐỘNG:
+        Tạo {So_Cau_goi_y} gợi ý trong những HÀNH ĐỘNG:
         - Xem chi tiết vật liệu
         - So sánh giá/tính năng
         - Xem sản phẩm dùng vật liệu này
@@ -156,7 +178,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         prompt += f"""
         User đang xem định mức vật liệu của:
         {product_name} ({headcode})
-        Tạo 4 gợi ý TIẾP THEO:
+        Tạo {So_Cau_goi_y} gợi ý trong những việc TIẾP THEO:
         - Xem giá/chi phí
         - So sánh với sản phẩm khác
         - Tìm vật liệu thay thế
@@ -173,11 +195,26 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         prompt += f"""
         User đang xem chi phí của:
         {product_name} ({headcode})
-        Tạo 4 gợi ý:
+        Tạo {So_Cau_goi_y} gợi ý trong những việc sau:
         - Xem chi tiết vật liệu
         - So sánh giá với SP khác
         - Tối ưu chi phí
         - Xuất báo cáo
+        YÊU CẦU:
+        - Liên quan đến chi phí/giá
+        - Không dùng emoji
+        """
+    
+    elif context_type == "get_product_materials":
+        product_name = context_data.get("product_name", "")
+        headcode = context_data.get("headcode", "")
+        prompt += f"""
+        User đang xem chi phí của:
+        {product_name} ({headcode})
+        Tạo {So_Cau_goi_y} gợi ý trong những việc sau:
+        - tên gọi của những sản phẩm tương tự
+        - vật liệu phổ biến dùng cho sản phẩm này
+        - tìm sản phẩm thay thế
         YÊU CẦU:
         - Liên quan đến chi phí/giá
         - Không dùng emoji
@@ -189,7 +226,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         prompt += f"""
         User vừa xem định mức {product_count} sản phẩm.
         Sản phẩm đầu: {first_product}
-        Tạo 4 gợi ý:
+        Tạo {So_Cau_goi_y} gợi ý trong những việc sau:
         - Xem báo cáo chi phí
         - Xuất Excel
         - Phân tích chi tiết
@@ -204,7 +241,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         first_headcode = context_data.get("first_headcode", "")
         prompt += f"""
         User vừa xem chi phí {product_count} sản phẩm.
-        Tạo 4 gợi ý:
+        Tạo {So_Cau_goi_y} gợi ý trong những việc sau:
         - Xem định mức chi tiết
         - Xuất báo cáo Excel
         - Phân tích vật liệu
@@ -228,8 +265,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
     [
         "Gợi ý 1 - tự nhiên, không emoji",
         "Gợi ý 2 - tự nhiên, không emoji",
-        "Gợi ý 3 - tự nhiên, không emoji",
-        "Gợi ý 4 - tự nhiên, không emoji"
+        "Gợi ý 3 - tự nhiên, không emoji"
     ]
     """
     try:
@@ -783,25 +819,38 @@ def get_product_materials(headcode: str):
     response += f"🏷️ Mã: `{headcode}`\n"
     response += f"📦 Tổng số loại vật liệu: **{len(materials_with_price)}**\n\n"
     response += "---\n\n"
+
+    # Bảng Markdown tóm tắt vật liệu (tối đa 10 dòng)
+    headers = [
+        "STT",
+        "Tên vật liệu",
+        "Mã SAP",
+        "Nhóm",
+        "Số lượng",
+        "Đơn giá mới nhất (VNĐ)",
+        "Thành tiền (VNĐ)"
+    ]
+    rows = []
+
+    for idx, mat in enumerate(materials_with_price[:15], 1):
+        group_full = mat["material_group"] or ""
+        if mat.get("material_subgroup"):
+            group_full += f" - {mat['material_subgroup']}"
+
+        rows.append([
+            idx,
+            mat["material_name"],
+            mat["id_sap"],
+            group_full,
+            f"{mat['quantity']:,.2f} {mat['pm_unit']}",
+            f"{mat['unit_price']:,.2f}",
+            f"{mat['total_cost']:,.2f}",
+        ])
+
+    response += build_markdown_table(headers, rows) + "\n\n"
     
-    for idx, mat in enumerate(materials_with_price[:10], 1):
-        response += f"**{idx}. {mat['material_name']}**\n"
-        response += f"   • Mã SAP: `{mat['id_sap']}`\n"
-        response += f"   • Nhóm: {mat['material_group']}"
-        if mat['material_subgroup']:
-            response += f" - {mat['material_subgroup']}"
-        response += f"\n"
-        response += f"   • Số lượng: {mat['quantity']} {mat['pm_unit']}\n"
-        response += f"   • Đơn giá mới nhất: {mat['unit_price']:,.2f} VNĐ\n"
-        response += f"   • Thành tiền: **{mat['total_cost']:,.2f} VNĐ**\n"
-        
-        if mat.get('image_url'):
-            response += f"   • [📷 Xem ảnh]({mat['image_url']})\n"
-        
-        response += "\n"
-    
-    if len(materials_with_price) > 10:
-        response += f"\n*...và {len(materials_with_price)-10} vật liệu khác.*\n"
+    if len(materials_with_price) > 15:
+        response += f"\n*...và {len(materials_with_price)-15} vật liệu khác.*\n"
     
     response += f"\n---\n\n💰 **TỔNG CHI PHÍ NGUYÊN VẬT LIỆU: {total:,.2f} VNĐ**"
     response += f"\n\n⚠️ **Lưu ý:** Giá được tính từ lịch sử mua hàng gần nhất. Giá thực tế có thể thay đổi."
@@ -816,14 +865,25 @@ def get_product_materials(headcode: str):
         response += f"_(Click để xem ảnh chi tiết)_"
     
     latest_price_summary = materials_with_price[0]['price'] if materials_with_price else 0
-    
+
+    # Gợi ý câu hỏi tiếp theo
+    suggested_prompts = generate_suggested_prompts(
+        "get_product_materials",
+        {
+            "product_name": prod['product_name'],
+            "headcode": headcode,
+        },
+    )
+    suggested_prompts_mess = format_suggested_prompts(suggested_prompts)
+    response += "\n\n" + "---" + "\n\n"
+    response += suggested_prompts_mess
     return {
         "response": response,
         "materials": materials_with_price,
         "total_cost": total,
         "product_name": prod['product_name'],
         "latest_price": latest_price_summary,
-        "price_history": price_history
+        "price_history": price_history,
     }
 
 def calculate_product_cost(headcode: str):
@@ -905,12 +965,29 @@ def calculate_product_cost(headcode: str):
     response += f"📂 **Danh mục:** {prod['category'] or 'N/A'}\n"
     response += f"---\n"
     response += f"**CHI TIẾT NGUYÊN VẬT LIỆU ({material_count} loại):**\n"
-    
+
+    # Bảng Markdown cho tối đa 15 vật liệu đầu tiên
+    headers = [
+        "STT",
+        "Tên vật liệu",
+        "Nhóm",
+        "Số lượng",
+        "Đơn giá (VNĐ)",
+        "Thành tiền (VNĐ)"
+    ]
+    rows = []
+
     for idx, mat in enumerate(materials_detail[:15], 1):
-        response += f"{idx}. **{mat['material_name']}** ({mat['material_group']})\n"
-        response += f"   • Số lượng: {mat['quantity']} {mat['unit']}\n"
-        response += f"   • Đơn giá: {mat['unit_price']:,.0f} VNĐ\n"
-        response += f"   • Thành tiền: **{mat['total_cost']:,.0f} VNĐ**\n\n"
+        rows.append([
+            idx,
+            mat["material_name"],
+            mat["material_group"],
+            f"{mat['quantity']:,.2f} {mat['unit']}",
+            f"{mat['unit_price']:,.0f}",
+            f"{mat['total_cost']:,.0f}",
+        ])
+
+    response += build_markdown_table(headers, rows) + "\n\n"
     
     if len(materials_detail) > 15:
         response += f"*...và {len(materials_detail)-15} vật liệu khác*\n\n"
@@ -1113,10 +1190,10 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     
     response = f"""
                 🧱 **CHI TIẾT NGUYÊN VẬT LIỆU**
-
                 📦 **Tên:** {material['material_name']}
                 🏷️ **Mã SAP:** `{material['id_sap']}`
-                📂 **Nhóm:** {material['material_group']}"""
+                📂 **Nhóm:** {material['material_group']}
+            """
                     
     if material.get('material_subgroup'):
         response += f" - {material['material_subgroup']}"
@@ -1159,7 +1236,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     
     if material.get('image_url'):
         response += f"---\n\n🖼️ **Xem ảnh vật liệu:** [Google Drive Link]({material['image_url']})\n"
-        response += f"_(Click để xem ảnh chi tiết)_"
+        response += f"(Click để xem ảnh chi tiết)"
     
     return {
         "response": response,
@@ -1231,11 +1308,12 @@ def list_material_groups():
         "response": response,
         "material_groups": groups_with_stats
     }
+    
+    
 
-
-# ========================================
+# ================================================================================================
 # API ENDPOINTS
-# ========================================
+# ================================================================================================
 
 @router.post("/chat")
 def chat(msg: ChatMessage):
@@ -1321,52 +1399,33 @@ def chat(msg: ChatMessage):
                     if ranking_summary['ranking_applied']:
                         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} sản phẩm** được ưu tiên dựa trên lịch sử tìm kiếm."
                     
-                    response_text += "\n**Bảng tóm tắt các vật liệu:**\n"
-                    table = PrettyTable()
-                    table.field_names = [
+                    response_text += "\n**Bảng tóm tắt các sản phẩm:**\n"
+
+                    headers = [
                         "STT",
-                        "Tên vật liệu",
-                        "Mã SAP",
-                        "Nhóm",
-                        "Giá (VNĐ/ĐV)",
-                        "Phản hồi"
+                        "Tên sản phẩm",
+                        "Mã sản phẩm",
+                        "Danh mục",
+                        "Danh mục phụ",
+                        "Vật liệu chính",
                     ]
-                    table.align = {
-                        "Tên vật liệu": "l",
-                        "Mã SAP": "l",
-                        "Nhóm": "l",
-                        "Giá (VNĐ/ĐV)": "r",
-                        "Phản hồi": "c"
-                    }
-                    for idx, mat in enumerate(materials, 1):
-                        price = f"{mat.get('price', 0):,.2f} / {mat.get('unit', '')}"
-                        material_name = mat["material_name"]
-                        feedback = (
-                            f"{mat['feedback_count']} lượt"
-                            if mat.get("has_feedback")
-                            else "-"
-                        )
-                        table.add_row([
+                    rows = []
+
+                    for idx, prod_item in enumerate(products, 1):
+                        rows.append([
                             idx,
-                            material_name,
-                            mat["id_sap"],
-                            mat["material_group"],
-                            price,
-                            feedback
+                            prod_item.get("product_name", ""),
+                            prod_item.get("headcode", ""),
+                            prod_item.get("category", ""),
+                            prod_item.get("sub_category", ""),
+                            prod_item.get("material_primary", ""),
                         ])
+
                     response_text += (
-                        "\n📦 **DANH SÁCH VẬT LIỆU ƯU TIÊN**\n"
-                        "```\n"
-                        f"{table}\n"
-                        "```\n"
+                        "\n📦 **DANH SÁCH SẢN PHẨM ĐỀ XUẤT**\n" +
+                        build_markdown_table(headers, rows) +
+                        "\n"
                     )
-                    
-                    # Thêm phần link hình ảnh riêng (ngoài bảng)
-                    materials_with_images = [m for m in materials[:3] if m.get('image_url')]
-                    if materials_with_images:
-                        response_text += "\n**📷 XEM ẢNH MẪU:**\n"
-                        for mat in materials_with_images:
-                            response_text += f"• [{mat['material_name']}]({mat.get('image_url', '#')})\n"
                     
                     suggested_prompts = [
                         f"💰 Phân tích chi phí {products[0]['headcode']}",
@@ -1374,18 +1433,21 @@ def chat(msg: ChatMessage):
                         f"🎯 So sánh với sản phẩm tương tự",
                         "📞 Kết nối với chuyên viên tư vấn"
                     ]
-                    suggested_prompts_mess = generate_suggested_prompts(
+                    
+                    tmp = generate_suggested_prompts(
                         "search_product_found",
                         {"query": user_message, "products": products}
                     )
-                    response_text += (
-                        f"**Các vật :**\n"
-                        # f"• Các sản phẩm được liệt kê dưới đây đều đáp ứng yêu cầu về sản phẩm\n"
-                        # f"• Nếu cần thay đổi tiêu chí (màu sắc, kích thước, chất liệu), hãy cho tôi biết\n"
-                        # f"• Tôi có thể tư vấn thêm về phong cách thiết kế phù hợp"
-                        f"{suggested_prompts_mess}"
-                    )
-                    
+                    suggested_prompts_mess = format_suggested_prompts(tmp)
+                    # response_text += (
+                    #     f"**Các vật :**\n"
+                    #     # f"• Các sản phẩm được liệt kê dưới đây đều đáp ứng yêu cầu về sản phẩm\n"
+                    #     # f"• Nếu cần thay đổi tiêu chí (màu sắc, kích thước, chất liệu), hãy cho tôi biết\n"
+                    #     # f"• Tôi có thể tư vấn thêm về phong cách thiết kế phù hợp"
+                    #     f"{suggested_prompts_mess}"
+                    # )
+                    response_text += "\n\n---\n\n"
+                    response_text += suggested_prompts_mess
                 result_response = {
                     "response": response_text,
                     "products": products,
@@ -1570,10 +1632,11 @@ def chat(msg: ChatMessage):
             ranking_summary = get_ranking_summary(materials)
                         
             if not materials:
-                suggested_prompts_mess = generate_suggested_prompts(
+                tmp = generate_suggested_prompts(
                     "search_material_not_found",
                     {"query": user_message}
                 )
+                suggested_prompts_mess = format_suggested_prompts(tmp)
                 result_response = {
                     "response": f'🔍 Đã tìm thấy sản phẩm: **"{search_result.get("response", "Không tìm thấy vật liệu phù hợp.")}"**.\n\n'
                     "**Đề xuất:**\n"
@@ -1608,8 +1671,7 @@ def chat(msg: ChatMessage):
                         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} vật liệu** được ưu tiên."
 
                 response_text += "\n**Bảng tóm tắt các vật liệu:**\n"
-                table = PrettyTable()
-                table.field_names = [
+                headers = [
                     "STT",
                     "Tên vật liệu",
                     "Mã SAP",
@@ -1617,14 +1679,8 @@ def chat(msg: ChatMessage):
                     "Giá (VNĐ/ĐV)",
                     "Phản hồi"
                 ]
+                rows = []
 
-                table.align = {
-                    "Tên vật liệu": "l",
-                    "Mã SAP": "l",
-                    "Nhóm": "l",
-                    "Giá (VNĐ/ĐV)": "r",
-                    "Phản hồi": "c"
-                }
                 for idx, mat in enumerate(materials, 1):
                     price = f"{mat.get('price', 0):,.2f} / {mat.get('unit', '')}"
                     material_name = mat["material_name"]
@@ -1633,7 +1689,7 @@ def chat(msg: ChatMessage):
                         if mat.get("has_feedback")
                         else "-"
                     )
-                    table.add_row([
+                    rows.append([
                         idx,
                         material_name,
                         mat["id_sap"],
@@ -1641,11 +1697,11 @@ def chat(msg: ChatMessage):
                         price,
                         feedback
                     ])
+
                 response_text += (
-                    "\n📦 **DANH SÁCH VẬT LIỆU ƯU TIÊN**\n"
-                    "```\n"
-                    f"{table}\n"
-                    "```\n"
+                    "\n📦 **DANH SÁCH VẬT LIỆU ƯU TIÊN**\n" +
+                    build_markdown_table(headers, rows) +
+                    "\n"
                 )
                 
                 # Thêm phần link hình ảnh riêng (ngoài bảng)
@@ -1655,15 +1711,16 @@ def chat(msg: ChatMessage):
                     for mat in materials_with_images:
                         response_text += f"• [{mat['material_name']}]({mat.get('image_url', '#')})\n"
                 
-                suggested_prompts_mess = generate_suggested_prompts(
+                tmp = generate_suggested_prompts(
                     "search_material_found",
                     {"query": user_message, "materials": materials}
                 )
+                suggested_prompts_mess = format_suggested_prompts(tmp)
                 response_text += (
                         f"**Nếu các vật liệu trên chưa đúng ý, tôi có thể:**\n"
                         f"{suggested_prompts_mess}"
                     )
-
+                
                 result_response = {
                     "response": response_text,
                     "materials": materials,
@@ -1857,10 +1914,9 @@ def batch_product_operations(request: BatchProductRequest):
                 response += f"### 📦 {prod_data['product_name']} (`{prod_data['headcode']}`)\n\n"
                 
                 total_cost = sum(m['total'] for m in prod_data['materials'])
-                
-                # Tạo bảng PrettyTable cho vật liệu
-                table = PrettyTable()
-                table.field_names = [
+
+                # Tạo bảng Markdown cho vật liệu
+                headers = [
                     "STT",
                     "Tên vật liệu",
                     "Nhóm",
@@ -1868,15 +1924,10 @@ def batch_product_operations(request: BatchProductRequest):
                     "Đơn giá (VNĐ)",
                     "Thành tiền (VNĐ)"
                 ]
-                
-                table.align["Tên vật liệu"] = "l"
-                table.align["Nhóm"] = "l"
-                table.align["Số lượng"] = "r"
-                table.align["Đơn giá (VNĐ)"] = "r"
-                table.align["Thành tiền (VNĐ)"] = "r"
-                
-                for idx, mat in enumerate(prod_data['materials'][:10], 1):
-                    table.add_row([
+                rows = []
+
+                for idx, mat in enumerate(prod_data['materials'][:15], 1):
+                    rows.append([
                         idx,
                         mat['name'],
                         mat['group'],
@@ -1884,13 +1935,11 @@ def batch_product_operations(request: BatchProductRequest):
                         f"{mat['price']:,.0f}",
                         f"{mat['total']:,.0f}"
                     ])
+
+                response += build_markdown_table(headers, rows) + "\n\n"
                 
-                response += "```\n"
-                response += str(table)
-                response += "\n```\n\n"
-                
-                if len(prod_data['materials']) > 10:
-                    response += f"*...và {len(prod_data['materials'])-10} vật liệu khác*\n\n"
+                if len(prod_data['materials']) > 15:
+                    response += f"*...và {len(prod_data['materials'])-15} vật liệu khác*\n\n"
                 
                 response += f"💰 **Tổng NVL ({prod_data['headcode']}): {total_cost:,.0f} VNĐ**\n\n"
                 response += "---\n\n"
@@ -1904,20 +1953,22 @@ def batch_product_operations(request: BatchProductRequest):
             first_product_name = ""
             if len(products_dict) > 0:
                 first_product_name = list(products_dict.values())[0]['product_name']
-            
-            suggested_prompts_mess = generate_suggested_prompts(
+
+            suggested_prompts = generate_suggested_prompts(
                 "batch_materials",
                 {
                     "product_count": len(products_dict),
-                    "first_product": first_product_name
-                }
+                    "first_product": first_product_name,
+                },
             )
+            suggested_prompts_mess = format_suggested_prompts(suggested_prompts)
             response += suggested_prompts_mess
-            
+
             return {
                 "response": response,
                 "products_materials": products_dict,
-                "materials": all_materials
+                "materials": all_materials,
+                "suggested_prompts": suggested_prompts,
             }
         
         # ========== OPERATION: CHI PHÍ ==========
@@ -1996,20 +2047,22 @@ def batch_product_operations(request: BatchProductRequest):
             first_headcode = ""
             if len(products_cost) > 0:
                 first_headcode = list(products_cost.values())[0]['headcode']
-            
-            suggested_prompts_mess = generate_suggested_prompts(
+
+            suggested_prompts = generate_suggested_prompts(
                 "batch_cost",
                 {
                     "product_count": len(products_cost),
-                    "first_headcode": first_headcode
-                }
+                    "first_headcode": first_headcode,
+                },
             )
+            suggested_prompts_mess = format_suggested_prompts(suggested_prompts)
             response += suggested_prompts_mess
-            
+
             return {
                 "response": response,
                 "products_cost": products_cost,
-                "grand_total": grand_total
+                "grand_total": grand_total,
+                "suggested_prompts": suggested_prompts,
             }
         
         else:
