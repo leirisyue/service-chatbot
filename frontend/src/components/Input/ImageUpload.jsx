@@ -1,8 +1,7 @@
-import React, { useRef } from 'react';
-import IconButton from '@mui/material/IconButton';
-import ImageIcon from '@mui/icons-material/Image';
-import './Input.css';
 import ImageSearchIcon from '@mui/icons-material/ImageSearch';
+import IconButton from '@mui/material/IconButton';
+import { useRef } from 'react';
+import './Input.css';
 
 function ImageUpload({ onImageUpload, disabled }) {
   const fileInputRef = useRef(null);

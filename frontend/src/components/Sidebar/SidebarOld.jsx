@@ -1,15 +1,11 @@
-import React, { useState } from 'react';
-import './Sidebar.css';
-import { 
-  importProducts, 
-  importMaterials, 
-  importProductMaterials, 
-  classifyProducts, 
-  classifyMaterials,
-  generateEmbeddings,
+import { useState } from 'react';
+import {
+  classifyMaterials, classifyProducts, generateEmbeddings,
   generateMaterialEmbeddings,
-  getDebugInfo
+  getDebugInfo, importMaterials,
+  importProductMaterials, importProducts
 } from '../../services/api';
+import './Sidebar.css';
 
 function Sidebar({ sessionId, onResetChat }) {
   const [importResults, setImportResults] = useState({});

@@ -1,19 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
-import ProductCard from './ProductCard';
-import ProductListWithFeedback from './ProductListWithFeedback';
-import MaterialCard from './MaterialCard';
-import Grid from '@mui/material/Grid';
-import Box from '@mui/material/Box';
-import { formatTimestamp } from '../../utils/helpers';
 import { useAtom } from 'jotai';
+import { useEffect, useRef, useState } from 'react';
 import { messagesAtom } from '../../atom/messageAtom';
-import { batchProducts, trackReject, trackView, exportBOMReport } from '../../services/api';
+import { batchProducts, exportBOMReport, trackReject, trackView } from '../../services/api';
+import { formatTimestamp } from '../../utils/helpers';
+import ProductListWithFeedback from './ProductListWithFeedback';
 
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
+import remarkGfm from "remark-gfm";
 import { schemaMarkdown } from '../../utils/mardownhtml';
 
 function Message({ message, onSendMessage, typing }) {
@@ -246,7 +242,6 @@ function Message({ message, onSendMessage, typing }) {
               feedbackSelected={feedbackSelected}
               onToggleFeedback={handleToggleFeedback}
             />
-
             <div className="batch-actions">
               <hr />
               {selectedProducts.length > 0 ? (
@@ -271,7 +266,6 @@ function Message({ message, onSendMessage, typing }) {
                       💰 Chi phí
                     </button>
                   </div>
-
                   <div className="batch-actions-row">
                     <button
                       className="batch-btn secondary"

@@ -7,14 +7,13 @@ import Message from './Message';
 function ChatContainer({ isLoading, onSendMessage }) {
 
   const messages = useAtomValue(messagesAtom);
-  console.log("🚀 ~ ChatContainer ~ messages:", messages);
+  // console.log("🚀 ~ ChatContainer ~ messages:", messages);
 
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
-
 
   useEffect(() => {
     scrollToBottom();
