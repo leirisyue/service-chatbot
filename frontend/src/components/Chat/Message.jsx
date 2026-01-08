@@ -12,8 +12,23 @@ import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { schemaMarkdown } from '../../utils/mardownhtml';
 
+import * as React from 'react';
+import Box from '@mui/material/Box';
+import Tab from '@mui/material/Tab';
+import TabContext from '@mui/lab/TabContext';
+import TabList from '@mui/lab/TabList';
+import TabPanel from '@mui/lab/TabPanel';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import { Grid } from '@mui/system';
+import MaterialCard from './MaterialCard';
+
 function Message({ message, onSendMessage, typing }) {
-  // console.log("🚀 ~ Message ~ message:", message);
+
   const isUser = message.role === 'user';
 
   const [displayedText, setDisplayedText] = useState(message.content || "");
@@ -217,6 +232,21 @@ function Message({ message, onSendMessage, typing }) {
     </div>
   );
 
+  const [value, setValue] = React.useState('1');
+
+  const handleChange = (event: React.SyntheticEvent, newValue: string) => {
+    setValue(newValue);
+  };
+
+  const columns: GridColDef[] = [
+    { field: 'id', headerName: 'STT', width: 70, valueGetter: (params) => params.api.getRowIndex(params.row.headcode) + 1 },
+    { field: 'product_name', headerName: 'Tên vật liệu' },
+    { field: 'headcode', headerName: 'Mã SAP' },
+    { field: 'category', headerName: 'Nhóm' },
+    { field: 'final_rank', headerName: 'Số lượng' },
+    { field: 'similarity', headerName: 'Đơn giá mới nhất (VNĐ)' },
+    { field: 'total_cost', headerName: 'Thành tiền (VNĐ)' },
+  ];
 
   return (
     <div className={`message ${isUser ? 'user-message' : 'bot-message'}`}>
@@ -232,31 +262,125 @@ function Message({ message, onSendMessage, typing }) {
           {renderContent()}
           <div ref={bottomRef} />
 
+          {message.data?.materials?.length > 0 && <Box sx={{ width: '100%', typography: 'body1' }}>
+            <TabContext value={value}>
+              <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                <TabList onChange={handleChange} aria-label="lab API tabs example">
+                  <Tab label="View table" value="1" />
+                  <Tab label="View List" value="2" />
+                </TabList>
+              </Box>
+              <TabPanel value="1">
+                <TableContainer >
+                  <Table sx={{ minWidth: 650 }} aria-label="simple table">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Tên vật liệu</TableCell>
+                        <TableCell>Mã SAP</TableCell>
+                        <TableCell>Nhóm</TableCell>
+                        <TableCell>Số lượng</TableCell>
+                        <TableCell>Đơn giá mới nhất (VNĐ)</TableCell>
+                        <TableCell>Thành tiền (VNĐ)</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {message.data?.materials?.map((row) => (
+                        <TableRow
+                          key={row.material_name}
+                          // sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                        >
+                          <TableCell component="th" scope="row">
+                            {row.material_name}
+                          </TableCell>
+                          <TableCell>{row.id_sap}</TableCell>
+                          <TableCell>{row.material_group} - {row.material_subgroup}</TableCell>
+                          <TableCell>{row.quantity}/{row.pm_unit}</TableCell>
+                          <TableCell>{row.price}</TableCell>
+                          <TableCell>{row.total_cost}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
 
-          {/* MATERIALS */}
-          {/* {!isUser && typingDone && message.data?.materials?.length > 0 && (
-          <div className="materials-section fade-in">
-            <h3>
-              📦 Kết quả tìm kiếm vật liệu ({message.data.materials.length})
-            </h3>
-            <Grid container spacing={2}>
-              {message.data.materials.slice(0, 9).map((material, index) => (
-                <Grid key={index} size={{ xs: 12, md: 6 }}>
-                  <Box sx={{ height: '100%' }}>
-                    <MaterialCard
-                      material={material}
-                      onDetailClick={() =>
-                        handleMaterialDetailClick(material.material_name)
-                      }
+              </TabPanel>
+              <TabPanel value="2">
+                {!isUser && typingDone && message.data?.products?.length > 0 && (
+                  <>
+                    <ProductListWithFeedback
+                      products={message.data.products}
+                      onMaterialClick={handleMaterialClick}
+                      onPriceClick={handlePriceClick}
+                      selectedProducts={selectedProducts}
+                      onToggleSelected={handleToggleSelected}
+                      feedbackSelected={feedbackSelected}
+                      onToggleFeedback={handleToggleFeedback}
                     />
-                  </Box>
-                </Grid>
-              ))}
-            </Grid>
-          </div>
-        )} */}
+                    <div className="batch-actions">
+                      <hr />
+                      {selectedProducts.length > 0 ? (
+                        <>
+                          <div className="batch-actions-row">
+                            <button
+                              className="batch-btn primary"
+                              onClick={() => handleBatchOperation('detail')}
+                            >
+                              📋 Chi tiết SP
+                            </button>
+                            <button
+                              className="batch-btn primary"
+                              onClick={() => handleBatchOperation('materials')}
+                            >
+                              🧱 Định mức VL
+                            </button>
+                            <button
+                              className="batch-btn primary"
+                              onClick={() => handleBatchOperation('cost')}
+                            >
+                              💰 Chi phí
+                            </button>
+                          </div>
+                          <div className="batch-actions-row">
+                            <button
+                              className="batch-btn secondary"
+                              onClick={handleExportBOM}
+                            >
+                              📊 Xuất BOM
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <></>
+                      )}
+                    </div>
+                  </>
+                )}
+                {/* MATERIALS */}
+                {!isUser && typingDone && message.data?.materials?.length > 0 && (
+                  <div className="">
+                    {/* <h3>
+                      📦 Kết quả tìm kiếm vật liệu ({message.data.materials.length})
+                    </h3> */}
+                    <Grid container spacing={2}>
+                      {message.data.materials.map((material, index) => (
+                        <Grid key={index} size={{ xs: 12, md: 6 }}>
+                          <Box sx={{ height: '100%' }}>
+                            <MaterialCard
+                              material={material}
+                              onDetailClick={() =>
+                                handleMaterialDetailClick(material.material_name)
+                              }
+                            />
+                          </Box>
+                        </Grid>
+                      ))}
+                    </Grid>
+                  </div>
+                )}
+              </TabPanel>
+            </TabContext>
+          </Box>}
 
-          {/* PRODUCTS – giao diện mới với feedback & debug */}
           {!isUser && typingDone && message.data?.products?.length > 0 && (
             <>
               <ProductListWithFeedback
@@ -308,27 +432,26 @@ function Message({ message, onSendMessage, typing }) {
                     </div>
                   </>
                 ) : (
-                  <div className="batch-hint">
-                    💡 Tích chọn sản phẩm để xem chi tiết, định mức, hoặc xuất báo cáo
-                  </div>
+                  <></>
                 )}
               </div>
             </>
           )}
-                    {/* <div>{message?.data?.suggested_prompts_mess || ''}</div> */}
-          {!!message?.data?.suggested_prompts_mess ?? <div className="welcome-md">
-            <b>💡 Gợi ý cho bạn:</b>
-            <ReactMarkdown
-              remarkPlugins={[remarkGfm, remarkBreaks]}
-              rehypePlugins={[
-                rehypeRaw,
-                [rehypeSanitize, schemaMarkdown],
-              ]}
-            >
-              {message.data.suggested_prompts_mess}
-            </ReactMarkdown>
-            "Trên đây là gợi ý dành riêng cho bạn. Bạn có thể hỏi thêm bất cứ điều gì khác nhé! Tôi sẵn sàng hỗ trợ."
-          </div>}
+          {/* <div>{message?.data?.suggested_prompts_mess || ''}</div> */}
+          {!isUser && 
+            <>
+              <div>💡 <b>Gợi ý cho bạn:</b></div>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                rehypePlugins={[
+                  rehypeRaw,
+                  [rehypeSanitize, schemaMarkdown],
+                ]}
+              >
+                {message.data?.suggested_prompts_mess}
+              </ReactMarkdown>
+            </>
+          }
         </div>
       </div>
 

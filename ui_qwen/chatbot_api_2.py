@@ -2376,7 +2376,7 @@ def chat(msg: ChatMessage):
         # UNKNOWN
         else:
             result_response = {
-                "response": "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về sản phẩm hoặc vật liệu nhé!\n\n"
+                "response": "Tôi chưa hiểu rõ ý bạn. Hãy thử hỏi về sản phẩm hoặc vật liệu!\n\n"
                            "**Ví dụ:**\n"
                            "• \"Tìm bàn ăn tròn\"\n"
                            "• \"Tìm gỗ sồi\"\n"

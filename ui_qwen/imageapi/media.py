@@ -9,7 +9,6 @@ from .image_cache import image_cache
 
 router = APIRouter()
 
-
 def convert_drive_url(url: str) -> str:
     """
     Convert Google Drive share URL to direct download URL
@@ -26,7 +25,6 @@ def convert_drive_url(url: str) -> str:
         return f"https://drive.google.com/uc?export=download&id={file_id}"
 
     return url
-
 
 # ================================================================================================
 # POST: tạo media từ image_url
