@@ -167,6 +167,7 @@ function Message({ message, onSendMessage, typing }) {
 
       const userText = `${userTextPrefix} ${selectedProducts.length} sản phẩm`;
       appendBotExchange(userText, result);
+      
     } catch (error) {
       console.error('Batch operation error:', error);
       appendBotExchange(
@@ -238,16 +239,6 @@ function Message({ message, onSendMessage, typing }) {
     setValue(newValue);
   };
 
-  const columns: GridColDef[] = [
-    { field: 'id', headerName: 'STT', width: 70, valueGetter: (params) => params.api.getRowIndex(params.row.headcode) + 1 },
-    { field: 'product_name', headerName: 'Tên vật liệu' },
-    { field: 'headcode', headerName: 'Mã SAP' },
-    { field: 'category', headerName: 'Nhóm' },
-    { field: 'final_rank', headerName: 'Số lượng' },
-    { field: 'similarity', headerName: 'Đơn giá mới nhất (VNĐ)' },
-    { field: 'total_cost', headerName: 'Thành tiền (VNĐ)' },
-  ];
-
   return (
     <div className={`message ${isUser ? 'user-message' : 'bot-message'}`}>
       <div className="message-avatar">
@@ -256,7 +247,8 @@ function Message({ message, onSendMessage, typing }) {
 
       <div className="message-content">
         <div className="message-text">
-          <div style={{ paddingBottom: '15px' }}>
+          {/* <div style={{ paddingBottom: '15px' }}> */}
+          <div>
             {formatTimestamp(message?.timestamp)}
           </div>
           {/* Hiển thị ảnh nếu có */}
@@ -442,7 +434,7 @@ function Message({ message, onSendMessage, typing }) {
               </div>
             </>
           )}
-          {/* <div>{message?.data?.suggested_prompts_mess || ''}</div> */}
+
           {!isUser && message.data?.success &&
             <>
               <div>💡 <b>Gợi ý cho bạn:</b></div>

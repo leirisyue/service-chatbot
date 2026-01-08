@@ -502,7 +502,7 @@ def get_sessionId_messages_list(session_id: str):
         print(f"Error in get_sessionId_messages_list: {error_detail}")
         return {"Error": str(e), "detail": error_detail}
 
-@router.get("/history/session_id/{session_id}/messages", tags=["Chat History"])
+@router.get("chat_histories/session_id/{session_id}/messages", tags=["Chat History"])
 def get_sessionId_messages(session_id: str):
     """
     Phiên bản nâng cao với logic xác định welcome message thông minh hơn

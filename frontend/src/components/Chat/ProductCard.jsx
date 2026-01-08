@@ -1,7 +1,7 @@
 import React from 'react';
 
 function ProductCard({ product, onMaterialClick, onPriceClick }) {
-  
+
   return (
     <div className="product-card" style={{ position: 'relative' }}>
       <div className="product-header">
@@ -12,10 +12,15 @@ function ProductCard({ product, onMaterialClick, onPriceClick }) {
       <div className="product-details">
         <p>📦 {product.category || ''} - {product.sub_category || ''}</p>
         <p>🪵 {product.material_primary || ''}</p>
-        {!!product.project && <p style={{whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          width: '100%'}} title={`🗂️ Dự án: ${product.project}`}>🗂️ Dự án: {product.project}</p>}
+        {!!product.project &&
+          <p style={{
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            width: '100%'
+          }} title={`🗂️ Dự án: ${product.project}`}>
+            🗂️ Dự án: {product.project}
+          </p>}
       </div>
       <div className="product-actions" style={{ position: 'absolute', width: '90%', bottom: '15px' }}>
         <button

@@ -2351,8 +2351,7 @@ def chat(msg: ChatMessage):
                     "ranking_summary": ranking_summary,  # 🆕
                     "can_provide_feedback": True  # 🆕
                 }      
-      
-      
+
         elif intent == "query_material_detail":
             id_sap = params.get("id_sap")
             material_name = params.get("material_name")
@@ -4278,10 +4277,6 @@ def get_session_history(session_id: str):
         }
     except Exception as e:
         return {"error": str(e)}
-
-
-
-
 
 
 if __name__ == "__main__":

@@ -84,11 +84,22 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
+  position: relative;
 }
 
 .session-icon {
   font-size: 1.2rem;
   flex-shrink: 0;
+}
+
+.session-menu-btn {
+  opacity: 0;
+  transition: opacity 0.2s;
+  margin-left: auto;
+}
+
+.session-item:hover .session-menu-btn {
+  opacity: 1;
 }
 
 .session-info {
@@ -120,6 +131,69 @@
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid #f1f5f9;
+}
+
+/* Context Menu Styles */
+.session-rename {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.rename-input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 2px solid #667eea;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  outline: none;
+  font-family: inherit;
+}
+
+.rename-input:focus {
+  border-color: #5568d3;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.rename-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-rename-save,
+.btn-rename-cancel {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-rename-save {
+  background: #10b981;
+  color: white;
+}
+
+.btn-rename-save:hover {
+  background: #059669;
+  transform: scale(1.05);
+}
+
+.btn-rename-cancel {
+  background: #ef4444;
+  color: white;
+}
+
+.btn-rename-cancel:hover {
+  background: #dc2626;
+  transform: scale(1.05);
 }
 
 .loading-sessions,

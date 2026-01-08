@@ -1,6 +1,14 @@
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutline';
 import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import { useAtom, useAtomValue } from 'jotai/react';
 import { useEffect, useState } from 'react';
 import { messagesAtom, viewHistoryAtom } from '../../atom/messageAtom';
@@ -8,7 +16,7 @@ import { emailUserAtom } from '../../atom/variableAtom';
 import {
   classifyMaterials, classifyProducts, generateEmbeddings,
   generateMaterialEmbeddings, getChatSessions, getDebugInfo, getMessagersHistory, importMaterials,
-  importProductMaterials, importProducts
+  importProductMaterials, importProducts, renameSession, deleteSession
 } from '../../services/api';
 import './Sidebar.css';
 
@@ -23,6 +31,11 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
   const emailUser = useAtomValue(emailUserAtom);
   const [, setMessages] = useAtom(messagesAtom);
   const [, setViewHistory] = useAtom(viewHistoryAtom);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [menuSession, setMenuSession] = useState(null);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renamingSessionId, setRenamingSessionId] = useState(null);
+  const [newSessionName, setNewSessionName] = useState('');
 
   // Load danh sách sessions khi component mount
   useEffect(() => {
@@ -62,6 +75,99 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
       console.error('Error loading session history:', error);
       alert('Lỗi tải lịch sử: ' + error.message);
     }
+  };
+
+  const handleContextMenu = (event, session) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setContextMenu({
+      mouseX: event.clientX - 2,
+      mouseY: event.clientY - 4,
+    });
+    setMenuSession(session);
+  };
+
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+    setMenuSession(null);
+  };
+
+  const handleRenameClick = () => {
+    if (menuSession) {
+      setRenamingSessionId(menuSession.session_id);
+      setNewSessionName(menuSession.session_name);
+      setIsRenaming(true);
+    }
+    handleCloseContextMenu();
+  };
+
+  const handleRenameSubmit = async (sessionId) => {
+    if (!newSessionName.trim()) {
+      alert('Tên session không được để trống');
+      return;
+    }
+
+    try {
+      // Gọi API để đổi tên session
+      await renameSession(sessionId, newSessionName.trim());
+
+      // Cập nhật local state
+      setChatSessions(prev => ({
+        ...prev,
+        sessions: prev.sessions.map(s =>
+          s.session_id === sessionId
+            ? { ...s, session_name: newSessionName.trim() }
+            : s
+        )
+      }));
+
+      setIsRenaming(false);
+      setRenamingSessionId(null);
+      setNewSessionName('');
+    } catch (error) {
+      console.error('Error renaming session:', error);
+      alert('Lỗi đổi tên: ' + error.message);
+    }
+  };
+
+  const handleRenameCancel = () => {
+    setIsRenaming(false);
+    setRenamingSessionId(null);
+    setNewSessionName('');
+  };
+
+  const handleDeleteClick = async () => {
+    if (!menuSession) return;
+
+    const confirmDelete = window.confirm(
+      `Bạn có chắc chắn muốn xóa session "${menuSession.session_name}"?`
+    );
+
+    if (confirmDelete) {
+      try {
+        // Gọi API để xóa session
+        await deleteSession(menuSession.session_id);
+
+        // Cập nhật local state
+        setChatSessions(prev => ({
+          ...prev,
+          sessions: prev.sessions.filter(s => s.session_id !== menuSession.session_id)
+        }));
+
+        // Nếu đang xem session bị xóa thì reset
+        if (selectedSession === menuSession.session_id) {
+          onResetChat();
+          setViewHistory(false);
+        }
+
+        alert('Đã xóa session thành công');
+      } catch (error) {
+        console.error('Error deleting session:', error);
+        alert('Lỗi xóa session: ' + error.message);
+      }
+    }
+
+    handleCloseContextMenu();
   };
 
   const formatDate = (dateString) => {
@@ -214,35 +320,96 @@ function Sidebar({ sessionId, onResetChat, onLoadSession }) {
             <p>Chưa có lịch sử trò chuyện</p>
           </div>
         ) : (
-          <div className="sessions-list">
-            {chatSessions?.sessions?.map((session) => (
-              <div
-                key={session?.session_id}
-                className={`session-item ${selectedSession === session?.session_id ? 'active' : ''}`}
-                onClick={() => { handleSessionClick(session) }}
-              >
-                <div className="session-header">
-                  <span className="session-icon" style={{ paddingLeft: '10px' }}>
-                    <ChatBubbleOutlineIcon sx={{ fontSize: 15 }} />
-                  </span>
-                  <div className="session-info">
-                    <div className="session-preview">
-                      {/* {getSessionPreview(session?.session_name)} */} 
-                      {session?.session_name}
+          <>
+            <div className="sessions-list">
+              {chatSessions?.sessions?.map((session) => (
+                <div
+                  key={session?.session_id}
+                  className={`session-item ${selectedSession === session?.session_id ? 'active' : ''}`}
+                  onClick={() => { handleSessionClick(session) }}
+                >
+                  <div className="session-header">
+                    <span className="session-icon" style={{ paddingLeft: '10px' }}>
+                      <ChatBubbleOutlineIcon sx={{ fontSize: 15 }} />
+                    </span>
+                    <div className="session-info">
+                      {isRenaming && renamingSessionId === session.session_id ? (
+                        <div className="session-rename" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="text"
+                            className="rename-input"
+                            value={newSessionName}
+                            onChange={(e) => setNewSessionName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                handleRenameSubmit(session.session_id);
+                              } else if (e.key === 'Escape') {
+                                handleRenameCancel();
+                              }
+                            }}
+                            autoFocus
+                          />
+                          <div className="rename-actions">
+                            <button
+                              className="btn-rename-save"
+                              onClick={() => handleRenameSubmit(session.session_id)}
+                            >
+                              ✓
+                            </button>
+                            <button
+                              className="btn-rename-cancel"
+                              onClick={handleRenameCancel}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="session-preview">
+                            {session?.session_name}
+                          </div>
+                          <div className="session-date">
+                            {formatDate(session.last_updated || session.created_at)}
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="session-date">
-                      {formatDate(session.last_updated || session.created_at)}
-                    </div>
+                    <IconButton
+                      size="small"
+                      className="session-menu-btn"
+                      onClick={(e) => handleContextMenu(e, session)}
+                    >
+                      <MoreVertIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
                   </div>
                 </div>
-                {/* {session.history && session.history.length > 0 && (
-                  <div className="session-count">
-                    {session.history.length} tin nhắn
-                  </div>
-                )} */}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Menu
+              open={contextMenu !== null}
+              onClose={handleCloseContextMenu}
+              anchorReference="anchorPosition"
+              anchorPosition={
+                contextMenu !== null
+                  ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+                  : undefined
+              }
+            >
+              <MenuItem onClick={handleRenameClick}>
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Đổi tên</ListItemText>
+              </MenuItem>
+              <MenuItem onClick={handleDeleteClick}>
+                <ListItemIcon>
+                  <DeleteIcon fontSize="small" color="error" />
+                </ListItemIcon>
+                <ListItemText>Xóa</ListItemText>
+              </MenuItem>
+            </Menu>
+          </>
         )}
       </div>
       <div className="sidebar-footer">

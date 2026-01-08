@@ -200,3 +200,17 @@ export const getMessagersHistory = async (sessionId) => {
   const response = await api.get(`/history/session_id/${sessionId}/messages`);
   return response.data;
 }
+
+// Rename session
+export const renameSession = async (sessionId, newName) => {
+  const response = await api.put(`/chat_histories/session/${sessionId}/rename`, {
+    session_name: newName
+  });
+  return response.data;
+};
+
+// Delete session
+export const deleteSession = async (sessionId) => {
+  const response = await api.delete(`/chat_histories/session/${sessionId}`);
+  return response.data;
+};
