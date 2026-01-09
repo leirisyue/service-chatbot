@@ -78,11 +78,11 @@ router = APIRouter()
 
 def generate_suggested_prompts(context_type: str, context_data: Dict = None, count: int = 4) -> List[str]:
     
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
-        Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI.
+        Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI có gợi ý để cho user có định hướng.
 
         NGỮ CẢNH: {context_type}.
         cách xưng hô: tôi và bạn.
@@ -196,7 +196,7 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
         {product_name} ({headcode})
         Tạo {So_Cau_Goi_Y} gợi ý trong những việc sau:
         - Xem chi tiết vật liệu
-        - So sánh giá với SP khác
+        - So sánh giá với sản phẩm khác
         - Tối ưu chi phí
         - Xuất báo cáo
         YÊU CẦU:
@@ -332,7 +332,7 @@ def _get_fallback_prompts(context_type: str) -> List[str]:
 
 def get_intent_and_params(user_message: str, context: Dict) -> Dict:
     """AI Router với khả năng Reasoning & Soft Clarification"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     context_info = ""
     if context.get("current_products"):
@@ -375,7 +375,6 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
         - "Tìm gỗ" → search_material
         - "Tìm vật liệu ĐỂ LÀM bàn" → search_material_for_product
         ----------------------------------------------------------------
-
         - **greeting**: Chào hỏi (VD: "Xin chào", "Hello", "Hi")
         - **unknown**: Không rõ ý định
     
@@ -1536,15 +1535,15 @@ def chat(msg: ChatMessage):
                     #     # f"• Tôi có thể tư vấn thêm về phong cách thiết kế phù hợp"
                     #     f"{suggested_prompts_mess}"
                     # )
-                    response_text += "\n\n---\n\n"
-                    response_text += suggested_prompts_mess
+                    # response_text += "\n\n---\n\n"
+                    # response_text += suggested_prompts_mess
                 result_response = {
                     "response": response_text,
                     "products": products,
                     "suggested_prompts": suggested_prompts,
                     "ranking_summary": ranking_summary,  
                     "can_provide_feedback": True ,
-                    "suggested_prompts_mess":suggested_prompts_mess,
+                    "suggested_prompts_mess": suggested_prompts_mess,
                     "success": True
                 }
         elif intent == "search_product_by_material":

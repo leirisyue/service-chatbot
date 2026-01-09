@@ -4,14 +4,19 @@ import ImageUpload from './ImageUpload';
 import SendIcon from '@mui/icons-material/Send';
 import Button from '@mui/material/Button';
 
-function ChatInput({ onSendMessage, onImageUpload, disabled }) {
+function ChatInput({ onSendMessage, onImageUpload, disabled, lastMessage }) {
   const [inputValue, setInputValue] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
 
+  const checkNumberInText = (text, kt) => {
+    const numbers = text.match(/\d+/g)?.map(Number) || [];
+    return numbers.includes(kt);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     // Nếu có ảnh, gửi ảnh về backend
     if (selectedImage && !disabled) {
       onImageUpload(selectedImage);
@@ -20,9 +25,38 @@ function ChatInput({ onSendMessage, onImageUpload, disabled }) {
       setInputValue('');
       return;
     }
-    
-    // Nếu chỉ có text, gửi text
+
     if (inputValue.trim() && !disabled) {
+
+
+
+      if (!!lastMessage && lastMessage?.data?.suggested_prompts_mess && lastMessage?.data?.success) {
+
+        const list = lastMessage.data.suggested_prompts_mess
+          .split("•")
+          .map(item => item.trim())
+          .filter(item => item.length > 0);
+
+        let text = ""
+        if (checkNumberInText(inputValue, 1)) {
+          text = list[0];
+        }
+        if (checkNumberInText(inputValue, 2)) {
+          text = text + (text ? " " : "") + list[1];
+        }
+        if (checkNumberInText(inputValue, 3)) {
+          text = text + (text ? " " : "") + list[2];
+        }
+
+        if (text) {
+          onSendMessage(text);
+          setInputValue('');
+          return;
+        }
+      }
+
+      console.log("🚀 ~ handleSubmit ~ lastMessage:", lastMessage);
+      
       onSendMessage(inputValue);
       setInputValue('');
     }
@@ -53,15 +87,15 @@ function ChatInput({ onSendMessage, onImageUpload, disabled }) {
   };
 
   return (
-    <div style={{width: '100%'}}>
+    <div style={{ width: '100%' }}>
       {/* Hiển thị preview ảnh nếu có */}
       {imagePreview && (
         <div className="image-preview-container">
           <div className="image-preview-wrapper">
             <img src={imagePreview} alt="Preview" className="image-preview" />
-            <button 
+            <button
               type="button"
-              onClick={handleRemoveImage} 
+              onClick={handleRemoveImage}
               className="remove-image-button"
               title="Xóa ảnh"
             >
@@ -71,7 +105,7 @@ function ChatInput({ onSendMessage, onImageUpload, disabled }) {
           <div className="image-preview-hint">📷 Nhấn "Gửi" để tìm kiếm sản phẩm tương tự</div>
         </div>
       )}
-      
+
       <form className="chat-input-form" onSubmit={handleSubmit}>
         <ImageUpload onImageUpload={handleImageSelect} disabled={disabled} />
         <input

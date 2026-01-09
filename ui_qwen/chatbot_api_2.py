@@ -101,7 +101,7 @@ def generate_embedding(text: str):
 
 def expand_search_query(user_query: str, params: Dict) -> str:
     """AI mở rộng query ngắn thành mô tả chi tiết"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
 Người dùng tìm: "{user_query}"
@@ -244,7 +244,7 @@ def search_products_hybrid(params: Dict):
 
 def auto_classify_product(product_name: str, id_sap: str = "") -> Dict:
     """Tự động phân loại sản phẩm bằng AI"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
 Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
@@ -315,7 +315,7 @@ OUTPUT JSON ONLY (no markdown, no backticks):
 
 def auto_classify_material(material_name: str, id_sap: str = "") -> Dict:
     """Tự động phân loại vật liệu bằng AI"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
 Phân loại nguyên vật liệu nội thất:
@@ -443,7 +443,7 @@ def get_latest_material_price(material_subprice_json: str) -> float:
 
 def get_intent_and_params(user_message: str, context: Dict) -> Dict:
     """AI Router với khả năng Reasoning & Soft Clarification"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     context_info = ""
     if context.get("current_products"):
@@ -3203,7 +3203,7 @@ async def search_by_image(
             shutil.copyfileobj(file.file, buffer)
         
         img = Image.open(file_path)
-        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         
         prompt = """
         Đóng vai chuyên gia kỹ thuật AA Corporation.
@@ -3323,7 +3323,7 @@ def batch_classify_products(products_batch: List[Dict]) -> List[Dict]:
         return []
     
     # [FIX] Đổi sang model ổn định để tránh lỗi Rate Limit của bản Experimental
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     # Tạo danh sách sản phẩm trong prompt
     products_text = ""
@@ -3393,7 +3393,7 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
         return []
     
     # [FIX] Đổi sang model gemini-1.5-flash để ổn định hơn và tránh lỗi Rate Limit
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     materials_text = ""
     for i, mat in enumerate(materials_batch, 1):

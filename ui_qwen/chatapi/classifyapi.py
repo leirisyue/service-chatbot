@@ -34,7 +34,7 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
         return []
     
     # [FIX] Đổi sang model gemini-1.5-flash để ổn định hơn và tránh lỗi Rate Limit
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     materials_text = ""
     for i, mat in enumerate(materials_batch, 1):
@@ -97,7 +97,7 @@ def batch_classify_products(products_batch: List[Dict]) -> List[Dict]:
         return []
     
     # [FIX] Đổi sang model ổn định để tránh lỗi Rate Limit của bản Experimental
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     # Tạo danh sách sản phẩm trong prompt
     products_text = ""
@@ -174,7 +174,7 @@ async def search_by_image(
         
         # Open image using PIL
         img = Image.open(file_path)
-        model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        model = genai.GenerativeModel("gemini-2.5-flash")
         
         prompt = """
         Đóng vai chuyên viên tư vấn vật tư AA corporation (Nội thất cao cấp).
@@ -237,7 +237,7 @@ async def search_by_image(
                         f"Tuy nhiên, không tìm thấy sản phẩm tương tự trong kho dữ liệu.\n\n"
                         f"💡 Gợi ý: Thử mô tả bằng từ khóa hoặc upload ảnh rõ hơn.",
                 "products": [],
-                "ai_interpretation": ai_result.get("visual_description", "")
+                "ai_interpretation": ai_result.get("visual_description", ""),
             }
         
         return {

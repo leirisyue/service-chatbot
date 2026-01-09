@@ -80,7 +80,7 @@ router = APIRouter()
 
 def generate_suggested_prompts(context_type: str, context_data: Dict = None, count: int = 4) -> List[str]:
     
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
@@ -334,7 +334,7 @@ def _get_fallback_prompts(context_type: str) -> List[str]:
 
 def get_intent_and_params(user_message: str, context: Dict) -> Dict:
     """AI Router với khả năng Reasoning & Soft Clarification"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     context_info = ""
     if context.get("current_products"):
@@ -1594,8 +1594,8 @@ def chat(msg: ChatMessage):
                     #     # f"• Tôi có thể tư vấn thêm về phong cách thiết kế phù hợp"
                     #     f"{suggested_prompts_mess}"
                     # )
-                    response_text += "\n\n---\n\n"
-                    response_text += suggested_prompts_mess
+                    # response_text += "\n\n---\n\n"
+                    # response_text += suggested_prompts_mess
                 result_response = {
                     "response": response_text,
                     "products": products,

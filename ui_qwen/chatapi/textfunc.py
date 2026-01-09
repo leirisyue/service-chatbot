@@ -62,7 +62,7 @@ def extract_product_keywords(query: str) -> list:
 
 def auto_classify_product(product_name: str, id_sap: str = "") -> Dict:
     """Tự động phân loại sản phẩm bằng AI"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
                 Bạn là chuyên gia phân loại sản phẩm nội thất cao cấp.
@@ -127,7 +127,7 @@ def auto_classify_product(product_name: str, id_sap: str = "") -> Dict:
 
 def auto_classify_material(material_name: str, id_sap: str = "") -> Dict:
     """Tự động phân loại vật liệu bằng AI"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
                 Phân loại nguyên vật liệu nội thất:
@@ -446,7 +446,7 @@ def search_products_hybrid(params: Dict):
 
 def expand_search_query(user_query: str, params: Dict) -> str:
     """AI mở rộng query ngắn thành mô tả chi tiết"""
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
+    model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
             Người dùng tìm: "{user_query}"

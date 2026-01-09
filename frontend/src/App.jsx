@@ -108,7 +108,6 @@ function App() {
 
     // Tạo preview URL từ file
     const imageUrl = URL.createObjectURL(file);
-    console.log("🚀 ~ handleImageSearch ~ imageUrl:", imageUrl);
 
     try {
       const response = await searchByImage(file);
@@ -263,6 +262,7 @@ function App() {
                   onSendMessage={handleSendMessage}
                   onImageUpload={handleImageSearch}
                   disabled={isLoading}
+                  lastMessage={messages[messages.length - 1]}
                 />
               </div>
             </div>
