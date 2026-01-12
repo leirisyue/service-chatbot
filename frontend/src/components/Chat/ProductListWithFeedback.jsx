@@ -1,4 +1,4 @@
-import { Grid } from '@mui/material';
+import { Box, Grid } from '@mui/material';
 import React, { useState } from 'react';
 import ProductCard from './ProductCard';
 
@@ -68,10 +68,7 @@ function ProductListWithFeedback({
 
             return (
               <Grid key={pidx} size={{ xs: 12, md: 6 }}>
-                <div
-                  key={`${headcode}_${pidx}`}
-                  className="product-card-extended"
-                >
+                <Box sx={{ height: '100%' }}>
                   <ProductCard
                     product={{ ...product, product_name: productName }}
                     onMaterialClick={() => onMaterialClick?.(headcode)}
@@ -124,13 +121,13 @@ function ProductListWithFeedback({
                       </label>
                     )}
                   </div>
-                </div>
+                </Box>
               </Grid>
             );
           })}
         </Grid>
       </div>
-    </div>
+    </div >
   );
 }
 

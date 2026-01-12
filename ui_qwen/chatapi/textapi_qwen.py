@@ -1079,6 +1079,18 @@ def search_materials(params: Dict):
     query_text = " ".join(query_parts) if query_parts else "vật liệu nội thất"
     print(f"SEARCH: Searching materials for: {query_text}")
     
+    # ✅ EXTRACT MAIN KEYWORD - tương tự như product search
+    # Tách từ khóa chính từ material_name để filter kết quả
+    main_keyword = None
+    if params.get("material_name"):
+        name = params['material_name']
+        # Lấy từ khóa chính (sau dấu '-' nếu có)
+        # VD: "GỖ-BEECH" → main_keyword = "BEECH" (để filter chính xác)
+        if '-' in name:
+            parts = name.upper().split('-')
+            if len(parts) >= 2:
+                main_keyword = parts[-1].strip()  # Lấy phần sau dấu '-'
+    
     query_vector = generate_embedding_qwen(query_text)
     
     if query_vector:
@@ -1098,27 +1110,58 @@ def search_materials(params: Dict):
                 FROM materials_qwen
                 WHERE description_embedding IS NOT NULL AND {filter_clause}
                 ORDER BY distance ASC
-                LIMIT 10
+                LIMIT 30
             """
 
             cur.execute(sql, [query_vector] + filter_params)
             results = cur.fetchall()
             
             if results:
-                print(f"SUCCESS: Vector search: Found {len(results)} materials")
-                
-                materials_with_price = []
-                for mat in results:
-                    mat_dict = dict(mat)
-                    mat_dict['price'] = get_latest_material_price(mat_dict['material_subprice'])
-                    materials_with_price.append(mat_dict)
-                
-                conn.close()
-                return {
-                    "materials": materials_with_price,
-                    "search_method": "vector",
-                    "success": True
-                }
+                # ✅ POST-FILTER: Nếu có main_keyword, chỉ giữ materials có chứa keyword đó
+                if main_keyword:
+                    filtered_results = []
+                    for mat in results:
+                        mat_name_upper = mat['material_name'].upper()
+                        if main_keyword in mat_name_upper:
+                            filtered_results.append(mat)
+                    
+                    print(f"POST-FILTER (Vector): Filtered from {len(results)} to {len(filtered_results)} materials with keyword '{main_keyword}'")
+                    results = filtered_results[:10]
+                    
+                    if not results:
+                        print(f"No materials found with keyword '{main_keyword}' after vector search")
+                        # Continue to keyword search below
+                        pass
+                    else:
+                        print(f"SUCCESS: Vector search: Found {len(results)} materials")
+                        
+                        materials_with_price = []
+                        for mat in results:
+                            mat_dict = dict(mat)
+                            mat_dict['price'] = get_latest_material_price(mat_dict['material_subprice'])
+                            materials_with_price.append(mat_dict)
+                        
+                        conn.close()
+                        return {
+                            "materials": materials_with_price,
+                            "search_method": "vector",
+                            "success": True
+                        }
+                else:
+                    print(f"SUCCESS: Vector search: Found {len(results)} materials")
+                    
+                    materials_with_price = []
+                    for mat in results[:10]:
+                        mat_dict = dict(mat)
+                        mat_dict['price'] = get_latest_material_price(mat_dict['material_subprice'])
+                        materials_with_price.append(mat_dict)
+                    
+                    conn.close()
+                    return {
+                        "materials": materials_with_price,
+                        "search_method": "vector",
+                        "success": True
+                    }
         except Exception as e:
             print(f"WARNING: Vector search failed: {e}")
     
@@ -1126,8 +1169,18 @@ def search_materials(params: Dict):
     conditions = []
     values = []
     
+    # ✅ EXTRACT MAIN KEYWORD - tương tự như product search
+    # Tách từ khóa chính từ material_name để kiểm tra sau
+    main_keyword = None
     if params.get("material_name"):
         name = params['material_name']
+        # Lấy từ khóa chính (sau dấu '-' nếu có)
+        # VD: "GỖ-BEECH" → main_keyword = "BEECH" (để filter chính xác)
+        if '-' in name:
+            parts = name.upper().split('-')
+            if len(parts) >= 2:
+                main_keyword = parts[-1].strip()  # Lấy phần sau dấu '-'
+        
         conditions.append("(material_name ILIKE %s OR material_group ILIKE %s)")
         values.extend([f"%{name}%", f"%{name}%"])
     
@@ -1138,7 +1191,7 @@ def search_materials(params: Dict):
     
     if conditions:
         where_clause = " OR ".join(conditions)
-        sql = f"SELECT * FROM materials_qwen WHERE {where_clause} LIMIT 15"
+        sql = f"SELECT * FROM materials_qwen WHERE {where_clause} LIMIT 50"
     else:
         sql = "SELECT * FROM materials_qwen ORDER BY material_name ASC LIMIT 10"
         values = []
@@ -1155,8 +1208,28 @@ def search_materials(params: Dict):
                 "success": False
             }
         
+        # ✅ POST-FILTER: Nếu có main_keyword, chỉ giữ lại materials có chứa keyword đó
+        # VD: Tìm "GỖ-BEECH" → Chỉ giữ materials có "BEECH" trong tên, loại bỏ "GỖ-WHITE"
+        if main_keyword:
+            filtered_results = []
+            for mat in results:
+                mat_name_upper = mat['material_name'].upper()
+                # Kiểm tra xem main_keyword có trong material_name không
+                if main_keyword in mat_name_upper:
+                    filtered_results.append(mat)
+            
+            print(f"POST-FILTER: Filtered from {len(results)} to {len(filtered_results)} materials with keyword '{main_keyword}'")
+            results = filtered_results[:15]  # Giới hạn 15 kết quả
+            
+            if not results:
+                return {
+                    "response": f"Không tìm thấy vật liệu chứa '{params.get('material_name')}'.",
+                    "materials": [],
+                    "success": False
+                }
+        
         materials_with_price = []
-        for mat in results:
+        for mat in results[:15]:  # Limit to 15 results
             mat_dict = dict(mat)
             mat_dict['price'] = get_latest_material_price(mat.get('material_subprice'))
             materials_with_price.append(mat_dict)
@@ -1771,7 +1844,6 @@ def chat(msg: ChatMessage):
                         f"*Dưới đây là các vật liệu đang được sử dụng phổ biến:*"
                     )
                 else:
-                    # response_text = f"✅ Đã tìm thấy **{len(materials)} nguyên vật liệu** đúng yêu cầu."
                     response_text = (
                         f"✅ **TƯ VẤN VẬT LIỆU CHUYÊN SÂU**\n"
                         f"Dựa trên nhu cầu của bạn, **{len(materials)} vật liệu** dưới đây đang được sử dụng phổ biến và phù hợp nhất.\n\n"
@@ -1779,17 +1851,6 @@ def chat(msg: ChatMessage):
                     # 🆕 Hiển thị ranking info
                     if ranking_summary['ranking_applied']:
                         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} vật liệu** được ưu tiên."
-
-                response_text += "\n**Bảng tóm tắt các vật liệu:**\n"
-                headers = [
-                    "STT",
-                    "Tên vật liệu",
-                    "Mã SAP",
-                    "Nhóm",
-                    "Giá (VNĐ/ĐV)",
-                    "Phản hồi"
-                ]
-                rows = []
 
                 for idx, mat in enumerate(materials, 1):
                     price = f"{mat.get('price', 0):,.2f} / {mat.get('unit', '')}"
