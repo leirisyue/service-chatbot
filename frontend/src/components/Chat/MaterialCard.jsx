@@ -37,8 +37,8 @@ function MaterialCard({ material, onDetailClick }) {
           📂 Nhóm: {material.material_group || ''}
         </p>
         {(!!material.price || !!material.total_cost) ?
-          <div className="price-badge" title={`Giá: ${material.total_cost?.toLocaleString('vi-VN') || material.price?.toLocaleString('vi-VN')} VNĐ`}>
-            💰 {material.total_cost?.toLocaleString('vi-VN') || material.price?.toLocaleString('vi-VN')} VNĐ {material.unit ? "/" + material.unit : ''}
+          <div className="price-badge" title={`Giá: ${material.total_cost?.toLocaleString('vi-VN')+' VNĐ' || material.price?.toLocaleString('vi-VN')+' VNĐ' || ''} `}>
+            💰 {material.total_cost?.toLocaleString('vi-VN') || material.price?.toLocaleString('vi-VN')} VNĐ {material.unit ? "/" + material.unit : '' || ''}
           </div>
           : <div className="price-badge no-price" title="Chưa có giá">❓Liên hệ</div>}
       </div>

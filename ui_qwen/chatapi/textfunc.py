@@ -24,7 +24,7 @@ def format_suggested_prompts(prompts: list[str]) -> str:
     return "\n".join([f"• {p}" for p in prompts])
 
 def extract_product_keywords(query: str) -> list:
-    """Trích xuất từ khóa quan trọng"""
+    """Trích xuất từ khóa quan trọng, bao gồm cụm từ"""
     materials = ["gỗ teak", "gỗ sồi", "gỗ walnut", "đá marble", "đá granite", 
                     "da thật", "da bò", "vải linen", "kim loại", "teak", "oak", 
                     "walnut", "marble", "granite", "leather"]
@@ -36,15 +36,32 @@ def extract_product_keywords(query: str) -> list:
     shapes = ["tròn", "vuông", "chữ nhật", "oval", "l-shape", 
                 "round", "square", "rectangular"]
     
+    # Thêm các loại bàn cụ thể
+    table_types = ["bàn làm việc", "bàn ăn", "bàn trà", "bàn coffee", 
+                   "bàn học", "bàn máy tính", "working table", "desk", 
+                   "dining table", "coffee table", "study table"]
+    
+    # Thêm các loại ghế cụ thể
+    chair_types = ["ghế ăn", "ghế bar", "ghế sofa", "ghế văn phòng",
+                   "dining chair", "bar chair", "office chair"]
+    
     types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn",
                 "table", "chair", "cabinet", "bed", "shelf", "lamp"]
     
     query_lower = query.lower()
     keywords = []
     
-    for word_list in [materials, contexts, shapes, types]:
+    # Ưu tiên tìm cụm từ trước (như "bàn làm việc")
+    for word_list in [table_types, chair_types, materials, contexts, shapes]:
         for word in word_list:
             if word in query_lower:
+                keywords.append(word)
+    
+    # Sau đó tìm từ đơn
+    for word in types:
+        if word in query_lower:
+            # Chỉ thêm từ đơn nếu chưa có cụm từ chứa nó
+            if not any(word in kw for kw in keywords):
                 keywords.append(word)
     
     keywords = list(set(keywords))
@@ -354,7 +371,7 @@ def calculate_product_total_cost(headcode: str) -> float:
     return total_cost
 
 def search_products_hybrid(params: Dict):
-    """HYBRID: Vector + Keyword Boosting"""
+    """HYBRID: Vector + Keyword với từ CHÍNH bắt buộc khớp, từ PHỤ tìm gần giống"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -374,90 +391,216 @@ def search_products_hybrid(params: Dict):
     # 3. Extract keywords
     keywords = extract_product_keywords(expanded)
     
-    # 4. Vector
+    # 4. Tách từ trong query gốc
+    original_words = [w.strip().lower() for w in base.split() if len(w.strip()) > 1]
+    
+    # 5. XÁC ĐỊNH TỪ CHÍNH (loại sản phẩm) - PHẢI KHỚP CHÍNH XÁC
+    main_product_types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn", "gương",
+                          "table", "chair", "cabinet", "bed", "shelf", "lamp", "mirror"]
+    
+    main_word = None
+    secondary_words = []
+    
+    for word in original_words:
+        if word in main_product_types:
+            main_word = word
+            break
+    
+    # Nếu không tìm thấy từ chính trong danh sách, lấy từ đầu tiên làm từ chính
+    if not main_word and original_words:
+        main_word = original_words[0]
+    
+    # Các từ còn lại là từ phụ
+    secondary_words = [w for w in original_words if w != main_word]
+    
+    print(f"🔍 Main word (REQUIRED): '{main_word}' | Secondary: {secondary_words}")
+    
+    # 6. Vector
     vector = generate_embedding_qwen(expanded)
     if not vector:
         conn.close()
         return {"products": [], "search_method": "failed"}
     
-    # 5. SQL Hybrid
+    # 7. BƯỚC 1: Tìm trong DATABASE với TỪ CHÍNH (keyword search)
     try:
-        if keywords:
-            conditions = []
-            params_list = []
-            for kw in keywords:
-                conditions.append("(product_name ILIKE %s OR category ILIKE %s OR "
-                                "sub_category ILIKE %s OR material_primary ILIKE %s)")
-                params_list.extend([f"%{kw}%"] * 4)
-            
-            boost = f"(CASE WHEN ({' OR '.join(conditions)}) THEN 1 ELSE 0 END)"
-        else:
-            boost = "0"
-            params_list = []
+        if not main_word:
+            print("⚠️ No main word detected, returning empty")
+            conn.close()
+            return {"products": [], "search_method": "no_main_word"}
         
-        sql = f"""
+        # BƯỚC 1: Query database với từ CHÍNH - CHỈ TÌM TRONG PRODUCT_NAME
+        print(f"STEP 1: Query DB with main word: '{main_word}'")
+        
+        sql_step1 = """
             SELECT headcode, product_name, category, sub_category, 
-                    material_primary, project, project_id,
-                    (description_embedding <=> %s::vector) as raw_distance,
-                    {boost} as keyword_match
+                   material_primary, project, project_id, description_embedding
             FROM products_qwen
             WHERE description_embedding IS NOT NULL
-            ORDER BY (description_embedding <=> %s::vector) - ({boost} * 0.25) ASC
-            LIMIT 10
+                AND product_name ILIKE %s
+            LIMIT 100
         """
         
-        all_params = [vector] + params_list + [vector] + params_list
-        cur.execute(sql, all_params)
-        results = cur.fetchall()
+        cur.execute(sql_step1, [f"%{main_word}%"])
+        candidates = cur.fetchall()
         
-        if results:
-            products = [{
-                "headcode": r["headcode"],
-                "product_name": r["product_name"],
-                "category": r.get("category"),
-                "sub_category": r.get("sub_category"),
-                "material_primary": r.get("material_primary"),
-                "project": r.get("project"),
-                "project_id": r.get("project_id"),
-                "similarity": round(1 - r["raw_distance"], 3),
-                "keyword_matched": bool(r.get("keyword_match"))
-            } for r in results]
-            
-            print(f"SUCCESS: Found {len(products)} products (Hybrid)")
+        if not candidates:
+            print(f"❌ No products found with main word '{main_word}' in product_name")
             conn.close()
             return {
-                "products": products,
-                "search_method": "hybrid_vector_keyword",
-                "expanded_query": expanded
+                "products": [],
+                "search_method": "no_candidates_with_main_word",
+                "main_word": main_word
             }
+        
+        print(f"✅ Found {len(candidates)} candidates with '{main_word}'")
+        
+        # BƯỚC 2: Tính vector similarity cho từ PHỤ
+        # Tăng ngưỡng để loại bỏ sản phẩm không liên quan
+        SIMILARITY_THRESHOLD = 0.35  
+        MIN_SECONDARY_MATCH_RATIO = 0.5  # Tối thiểu 50% từ phụ phải khớp
+        
+        # Tạo vector cho query PHỤ (không bao gồm từ chính)
+        if secondary_words:
+            secondary_query = " ".join(secondary_words)
+            secondary_vector = generate_embedding_qwen(secondary_query)
+        else:
+            # Nếu không có từ phụ, dùng toàn bộ query
+            secondary_vector = vector
+            # Không cần filter nếu chỉ có 1 từ
+            MIN_SECONDARY_MATCH_RATIO = 0
+        
+        # Tính similarity cho từng candidate
+        scored_products = []
+        for candidate in candidates:
+            product_name = candidate["product_name"].lower()
+            
+            # Tính vector similarity
+            if candidate["description_embedding"] and secondary_vector:
+                # Convert embedding từ string hoặc list sang numpy array
+                candidate_emb = candidate["description_embedding"]
+                if isinstance(candidate_emb, str):
+                    candidate_emb = json.loads(candidate_emb)
+                
+                candidate_np = np.array(candidate_emb)
+                query_np = np.array(secondary_vector)
+                
+                # Cosine similarity
+                dot_product = np.dot(candidate_np, query_np)
+                norm_a = np.linalg.norm(candidate_np)
+                norm_b = np.linalg.norm(query_np)
+                similarity = dot_product / (norm_a * norm_b) if (norm_a * norm_b) > 0 else 0
+                similarity = float(similarity)
+            else:
+                similarity = 0.0
+            
+            # Đếm số từ phụ khớp chính xác
+            secondary_match_count = sum(1 for word in secondary_words if word in product_name)
+            secondary_match_ratio = secondary_match_count / len(secondary_words) if secondary_words else 1.0
+            
+            # Tính final score - ƯU TIÊN exact match HƠN
+            final_score = (secondary_match_ratio * 0.6) + (similarity * 0.4)
+            
+            # Thêm vào list scored_products
+            scored_products.append({
+                "headcode": candidate["headcode"],
+                "product_name": candidate["product_name"],
+                "category": candidate.get("category"),
+                "sub_category": candidate.get("sub_category"),
+                "material_primary": candidate.get("material_primary"),
+                "project": candidate.get("project"),
+                "project_id": candidate.get("project_id"),
+                "similarity": round(similarity, 3),
+                "secondary_match_count": secondary_match_count,
+                "secondary_match_ratio": round(secondary_match_ratio, 2),
+                "final_score": round(final_score, 3)
+            })
+        
+        # Lọc theo ĐIỀU KIỆN CHẶT:
+        # 1. Similarity >= ngưỡng
+        # 2. Nếu có từ phụ: phải khớp tối thiểu 50% từ phụ HOẶC similarity rất cao (>0.6)
+        filtered_products = []
+        for p in scored_products:
+            # Điều kiện 1: Similarity đạt ngưỡng cơ bản
+            if p["similarity"] < SIMILARITY_THRESHOLD:
+                continue
+            
+            # Điều kiện 2: Nếu có từ phụ, phải khớp đủ từ hoặc similarity rất cao
+            if secondary_words:
+                if p["secondary_match_ratio"] >= MIN_SECONDARY_MATCH_RATIO or p["similarity"] >= 0.6:
+                    filtered_products.append(p)
+            else:
+                # Không có từ phụ thì chỉ cần similarity
+                filtered_products.append(p)
+        
+        # Sort theo final_score
+        filtered_products.sort(key=lambda x: x["final_score"], reverse=True)
+        
+        # Giới hạn 10 sản phẩm
+        filtered_products = filtered_products[:10]
+        
+        if filtered_products:
+            print(f"✅ Final: {len(filtered_products)} products (main: '{main_word}', secondary match, similarity >= {SIMILARITY_THRESHOLD})")
+            for i, p in enumerate(filtered_products[:3], 1):
+                print(f"  {i}. {p['product_name']} (score: {p['final_score']}, sim: {p['similarity']})")
+            
+            conn.close()
+            return {
+                "products": filtered_products,
+                "search_method": "two_step_main_word_vector",
+                "expanded_query": expanded,
+                "main_word": main_word,
+                "secondary_words": secondary_words
+            }
+        else:
+            print(f"❌ No products meet similarity threshold (>= {SIMILARITY_THRESHOLD})")
+            conn.close()
+            return {
+                "products": [],
+                "search_method": "no_match_after_filtering",
+                "main_word": main_word
+            }
+            
     except Exception as e:
-        print(f"ERROR Hybrid failed: {e}")
+        print(f"ERROR: {e}")
+        import traceback
+        traceback.print_exc()
     
     conn.close()
     return {"products": [], "search_method": "hybrid_failed"}
 
 def expand_search_query(user_query: str, params: Dict) -> str:
-    """AI mở rộng query ngắn thành mô tả chi tiết"""
+    """AI mở rộng query ngắn thành mô tả chi tiết với từ khóa chính xác"""
     model = genai.GenerativeModel("gemini-2.5-flash")
     
     prompt = f"""
             Người dùng tìm: "{user_query}"
 
-            Tạo mô tả tìm kiếm tối ưu (2-3 câu ngắn):
-            1. LOẠI SẢN PHẨM (bàn/ghế/tủ...)
+            Tạo mô tả tìm kiếm tối ưu (2-3 câu ngắn), GIỮ NGUYÊN TỪ KHÓA CHÍNH từ câu gốc:
+            1. LOẠI SẢN PHẨM CHÍNH XÁC (bàn/ghế/tủ...) - PHẢI khớp với từ khóa gốc
             2. VẬT LIỆU CỤ THỂ (gỗ teak/đá marble/da bò...)
             3. VỊ TRÍ/CÔNG DỤNG (nhà bếp/phòng khách/dining/coffee...)
 
-            VD: "bàn gỗ teak" -> "Bàn làm từ gỗ teak tự nhiên. Dining table hoặc coffee table chất liệu teak wood cao cấp."
+            QUAN TRỌNG: 
+            - NẾU người dùng tìm "bàn làm việc" thì PHẢI nhấn mạnh "bàn làm việc", "desk", "working table"
+            - KHÔNG mở rộng sang loại sản phẩm khác (ví dụ: tìm "bàn" thì không nhắc đến "ghế")
+            - Chỉ bổ sung từ đồng nghĩa và chi tiết về loại sản phẩm CỤ THỂ đang tìm
 
-            Output (chỉ mô tả):
+            VD: 
+            - "bàn làm việc" -> "Bàn làm việc desk working table văn phòng. Office desk bàn học bàn máy tính."
+            - "bàn gỗ teak" -> "Bàn làm từ gỗ teak tự nhiên. Dining table hoặc coffee table chất liệu teak wood cao cấp."
+
+            Output (chỉ mô tả, tập trung vào từ khóa chính):
         """
     
     try:
         response = call_gemini_with_retry(model, prompt, max_retries=2)
         if response:
-            print(f"Expanded: '{user_query}' -> '{response[:80]}...'")
-            return response.strip()
+            # Đảm bảo từ khóa gốc có trong expanded query
+            expanded = response.strip()
+            if user_query.lower() not in expanded.lower():
+                expanded = f"{user_query} {expanded}"
+            print(f"Expanded: '{user_query}' -> '{expanded[:100]}...'")
+            return expanded
     except:
         pass
     return user_query
