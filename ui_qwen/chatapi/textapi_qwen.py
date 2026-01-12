@@ -1444,23 +1444,11 @@ def chat(msg: ChatMessage):
             if search_result.get("search_method") == "timeout" or (not products and search_result.get("success") == False):
                 print(f"⏱️ Search timeout or failed for query: {user_message}")
                 result_response = {
-                    "response": (
-                        f"🔍 **KHÔNG TÌM THẤY SẢN PHẨM PHÙ HỢP**\n\n"
-                        f"Rất tiếc, hệ thống không tìm thấy sản phẩm phù hợp với \"{user_message}\".\n\n"
-                        f"**💡 Gợi ý cho bạn:**\n"
-                        f"• Thử với từ khóa đơn giản hơn\n"
-                        f"• Tìm theo danh mục sản phẩm\n"
-                        f"• Xem các sản phẩm phổ biến\n"
-                        f"• Liên hệ chuyên viên tư vấn"
-                    ),
-                    "suggested_prompts": [
-                        "Xem danh mục bàn",
-                        "Xem danh mục ghế",
-                        "Sản phẩm phổ biến",
-                        "Liên hệ tư vấn viên"
-                    ],
+                    "response": "",
                     "products": [],
+                    "materials": [],
                     "success": True,
+                    "suggested_prompts": []
                 }
             elif not products:
                 try:

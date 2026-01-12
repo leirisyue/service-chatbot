@@ -5,12 +5,12 @@ const API_URL_CHATBOT = process.env.API_URL_CHATBOT || 'http://localhost:8080';
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  // timeout: 60000,
 });
 
 const api_Chatbot = axios.create({
   baseURL: API_URL_CHATBOT,
-  timeout: 30000,
+  // timeout: 60000,
 });
 
 // Chat endpoints
