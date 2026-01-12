@@ -36,14 +36,12 @@ def extract_product_keywords(query: str) -> list:
     shapes = ["tròn", "vuông", "chữ nhật", "oval", "l-shape", 
                 "round", "square", "rectangular"]
     
-    # Thêm các loại bàn cụ thể
     table_types = ["bàn làm việc", "bàn ăn", "bàn trà", "bàn coffee", 
-                   "bàn học", "bàn máy tính", "working table", "desk", 
-                   "dining table", "coffee table", "study table"]
+                    "bàn học", "bàn máy tính", "working table", "desk", 
+                    "dining table", "coffee table", "study table"]
     
-    # Thêm các loại ghế cụ thể
     chair_types = ["ghế ăn", "ghế bar", "ghế sofa", "ghế văn phòng",
-                   "dining chair", "bar chair", "office chair"]
+                    "dining chair", "bar chair", "office chair"]
     
     types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn",
                 "table", "chair", "cabinet", "bed", "shelf", "lamp"]
@@ -51,16 +49,13 @@ def extract_product_keywords(query: str) -> list:
     query_lower = query.lower()
     keywords = []
     
-    # Ưu tiên tìm cụm từ trước (như "bàn làm việc")
     for word_list in [table_types, chair_types, materials, contexts, shapes]:
         for word in word_list:
             if word in query_lower:
                 keywords.append(word)
     
-    # Sau đó tìm từ đơn
     for word in types:
         if word in query_lower:
-            # Chỉ thêm từ đơn nếu chưa có cụm từ chứa nó
             if not any(word in kw for kw in keywords):
                 keywords.append(word)
     
@@ -316,14 +311,38 @@ def format_search_results(results):
         })
     return products
 
-def call_gemini_with_retry(model, prompt, max_retries=3):
-    """Gọi Gemini với retry logic"""
+def call_gemini_with_retry(model, prompt, max_retries=3, timeout=20):
+    """Gọi Gemini với retry logic và timeout"""
+    import signal
+    
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Gemini API timeout")
+    
     for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt)
+            # Set timeout for this attempt (only on Unix systems)
+            if hasattr(signal, 'SIGALRM'):
+                signal.signal(signal.SIGALRM, timeout_handler)
+                signal.alarm(timeout)
+            
+            response = model.generate_content(prompt, request_options={"timeout": timeout})
+            
+            # Cancel alarm
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
+            
             if response.text:
                 return response.text
+        except TimeoutError:
+            print(f"WARNING: Gemini timeout after {timeout}s on attempt {attempt + 1}")
+            if attempt == max_retries - 1:
+                return None
+            continue
         except Exception as e:
+            # Cancel alarm on error
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
+            
             if "429" in str(e) or "quota" in str(e).lower():
                 wait_time = 5 * (2 ** attempt)
                 print(f"INFO: Quota exceeded. Đợi {wait_time}s...")
@@ -372,6 +391,16 @@ def calculate_product_total_cost(headcode: str) -> float:
 
 def search_products_hybrid(params: Dict):
     """HYBRID: Vector + Keyword với từ CHÍNH bắt buộc khớp, từ PHỤ tìm gần giống"""
+    import signal
+    
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Search timeout")
+    
+    # Set timeout cho toàn bộ search operation (20 giây)
+    if hasattr(signal, 'SIGALRM'):
+        signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(20)
+    
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -383,9 +412,56 @@ def search_products_hybrid(params: Dict):
                 params.get("material_primary", "")]
         base = " ".join([p for p in parts if p]) or "nội thất"
     
+    # ✅ XỬ LÝ ĐẶC BIỆT: Tìm "danh sách sản phẩm" - lấy 1 sản phẩm mỗi loại
+    query_lower = base.lower()
+    if "danh sách" in query_lower or "product list" in query_lower or "product catalog" in query_lower:
+        print(f"🔍 Special query detected: Product list - returning one product per category")
+        try:
+            sql = """
+                SELECT DISTINCT ON (category) 
+                    headcode, product_name, category, sub_category, 
+                    material_primary, project, project_id
+                FROM products_qwen
+                WHERE category IS NOT NULL
+                    AND category != ''
+                ORDER BY category, headcode
+                LIMIT 10
+            """
+            cur.execute(sql)
+            products = cur.fetchall()
+            
+            if products:
+                result = []
+                for p in products:
+                    result.append({
+                        "headcode": p["headcode"],
+                        "product_name": p["product_name"],
+                        "category": p.get("category"),
+                        "sub_category": p.get("sub_category"),
+                        "material_primary": p.get("material_primary"),
+                        "project": p.get("project"),
+                        "project_id": p.get("project_id"),
+                        "similarity": 0.9,
+                        "final_score": 0.9
+                    })
+                
+                conn.close()
+                if hasattr(signal, 'SIGALRM'):
+                    signal.alarm(0)
+                
+                print(f"✅ Found {len(result)} products (one per category)")
+                return {
+                    "products": result,
+                    "search_method": "product_list_by_category",
+                    "expanded_query": base
+                }
+        except Exception as e:
+            print(f"❌ Error in product list query: {e}")
+            # Fall through to normal search if error
+    
     # print(f"\n🔍 Query: {base}")
     
-    # 2. AI Expansion
+    # 2. AI Expansion với timeout ngắn hơn
     expanded = expand_search_query(base, params)
     
     # 3. Extract keywords
@@ -419,13 +495,17 @@ def search_products_hybrid(params: Dict):
     vector = generate_embedding_qwen(expanded)
     if not vector:
         conn.close()
-        return {"products": [], "search_method": "failed"}
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+        return {"products": [], "search_method": "failed", "error": "no_vector"}
     
     # 7. BƯỚC 1: Tìm trong DATABASE với TỪ CHÍNH (keyword search)
     try:
         if not main_word:
             print("⚠️ No main word detected, returning empty")
             conn.close()
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
             return {"products": [], "search_method": "no_main_word"}
         
         # BƯỚC 1: Query database với từ CHÍNH - CHỈ TÌM TRONG PRODUCT_NAME
@@ -446,11 +526,50 @@ def search_products_hybrid(params: Dict):
         if not candidates:
             print(f"❌ No products found with main word '{main_word}' in product_name")
             conn.close()
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
             return {
                 "products": [],
                 "search_method": "no_candidates_with_main_word",
                 "main_word": main_word
             }
+    
+    except TimeoutError:
+        print(f"⏱️ Search timeout exceeded - returning empty result")
+        try:
+            conn.close()
+        except:
+            pass
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+        return {
+            "products": [],
+            "search_method": "timeout",
+            "error": "search_timeout"
+        }
+    except Exception as e:
+        print(f"❌ Search error: {e}")
+        try:
+            conn.close()
+        except:
+            pass
+        if hasattr(signal, 'SIGALRM'):
+            signal.alarm(0)
+        return {
+            "products": [],
+            "search_method": "error",
+            "error": str(e)
+        }
+    finally:
+        # Luôn cancel alarm
+        if hasattr(signal, 'SIGALRM'):
+            try:
+                signal.alarm(0)
+            except:
+                pass
+    
+    # Continue với logic cũ nếu có candidates
+    try:
         
         print(f"✅ Found {len(candidates)} candidates with '{main_word}'")
         

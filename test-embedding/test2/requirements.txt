@@ -5,3 +5,5 @@ requests
 tiktoken
 transformers 
 torch
+sshtunnel
+paramiko<3.0.0

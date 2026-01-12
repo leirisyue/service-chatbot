@@ -7,8 +7,12 @@ from typing import List, Tuple, Any, Optional
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
-import google.generativeai as genai
 import requests
+
+try:
+    from sshtunnel import SSHTunnelForwarder
+except ImportError:
+    SSHTunnelForwarder = None
 
 try:
     import tiktoken
@@ -21,17 +25,35 @@ except ImportError:
 # =========================
 load_dotenv()
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "models/text-embedding-004")
-
 QWEN_EMBED_MODEL = os.getenv("QWEN_EMBED_MODEL", "qwen3-embedding:latest")
 QWEN_API_BASE = os.getenv("QWEN_API_BASE", "http://localhost:11434")  # ví dụ Ollama
 
-PG_HOST = os.getenv("PG_HOST", "localhost")
-PG_PORT = os.getenv("PG_PORT", "5432")
-PG_USER = os.getenv("PG_USER", "postgres")
-PG_PASSWORD = os.getenv("PG_PASSWORD", "postgres")
-PG_DATABASE = os.getenv("PG_DATABASE", "postgres")
+MAIN_DB_HOST = os.getenv("MAIN_DB_HOST", "localhost")
+MAIN_DB_PORT = os.getenv("MAIN_DB_PORT", "5432")
+MAIN_DB_USER = os.getenv("MAIN_DB_USER", "postgres")
+MAIN_DB_PASSWORD = os.getenv("MAIN_DB_PASSWORD", "postgres")
+MAIN_DB_DATABASE = os.getenv("MAIN_DB_DATABASE", "postgres")
+
+# Cấu hình SSH tunnel cho MAIN DB (tùy chọn)
+# Nếu muốn script tự mở SSH tunnel:
+#   MAIN_DB_SSH_TUNNEL_ENABLED=true
+#   MAIN_DB_SSH_TUNNEL_HOST=192.168.4.41      # bastion SSH
+#   MAIN_DB_SSH_TUNNEL_PORT=22                # cổng SSH
+#   MAIN_DB_SSH_TUNNEL_USER=root              # user SSH
+#   MAIN_DB_SSH_TUNNEL_PASSWORD=...           # mật khẩu SSH (hoặc dùng key riêng)
+#   MAIN_DB_SSH_TUNNEL_LOCAL_PORT=15432       # cổng local forward tới MAIN_DB_HOST:MAIN_DB_PORT
+MAIN_DB_SSH_TUNNEL_ENABLED = os.getenv("MAIN_DB_SSH_TUNNEL_ENABLED", "false").strip().lower() == "true"
+MAIN_DB_SSH_TUNNEL_HOST = os.getenv("MAIN_DB_SSH_TUNNEL_HOST", "")
+MAIN_DB_SSH_TUNNEL_PORT = int(os.getenv("MAIN_DB_SSH_TUNNEL_PORT", "22"))
+MAIN_DB_SSH_TUNNEL_USER = os.getenv("MAIN_DB_SSH_TUNNEL_USER", "")
+MAIN_DB_SSH_TUNNEL_PASSWORD = os.getenv("MAIN_DB_SSH_TUNNEL_PASSWORD", "")
+MAIN_DB_SSH_TUNNEL_LOCAL_PORT = int(os.getenv("MAIN_DB_SSH_TUNNEL_LOCAL_PORT", "15432"))
+
+VECTOR_DB_HOST = os.getenv("VECTOR_DB_HOST", "localhost")
+VECTOR_DB_PORT = os.getenv("VECTOR_DB_PORT", "5432")
+VECTOR_DB_USER = os.getenv("VECTOR_DB_USER", "postgres")
+VECTOR_DB_PASSWORD = os.getenv("VECTOR_DB_PASSWORD", "postgres")
+VECTOR_DB_DATABASE = os.getenv("VECTOR_DB_DATABASE", "postgres")
 
 # Kiểu lưu embedding trong DB: "vector" (pgvector) hoặc "jsonb"
 EMBEDDING_STORAGE_TYPE = os.getenv("EMBEDDING_STORAGE_TYPE", "vector").lower()
@@ -105,43 +127,79 @@ def estimate_tokens(texts: List[str], model_name: str = "gpt-4o-mini") -> int:
 # 5. Postgres helpers
 # =========================
 
-def get_pg_connection():
+_MAIN_DB_TUNNEL = None
+
+
+def get_vector_db_connection():
     conn = psycopg2.connect(
-        host=PG_HOST,
-        port=PG_PORT,
-        user=PG_USER,
-        password=PG_PASSWORD,
-        dbname=PG_DATABASE,
+        host=VECTOR_DB_HOST,
+        port=VECTOR_DB_PORT,
+        user=VECTOR_DB_USER,
+        password=VECTOR_DB_PASSWORD,
+        dbname=VECTOR_DB_DATABASE,
     )
     return conn
 
+_MAIN_DB_TUNNEL = None
 
+def _ensure_main_db_tunnel():
+    global _MAIN_DB_TUNNEL
+    if not MAIN_DB_SSH_TUNNEL_ENABLED:
+        return None
+    if SSHTunnelForwarder is None:
+        raise RuntimeError("sshtunnel package is required for SSH tunnel. Please install it with 'pip install sshtunnel'.")
+    if _MAIN_DB_TUNNEL is not None:
+        return _MAIN_DB_TUNNEL
+
+    if not MAIN_DB_SSH_TUNNEL_HOST or not MAIN_DB_SSH_TUNNEL_USER:
+        raise RuntimeError("MAIN_DB_SSH_TUNNEL_HOST và MAIN_DB_SSH_TUNNEL_USER phải được cấu hình trong .env khi bật MAIN_DB_SSH_TUNNEL_ENABLED.")
+
+    tunnel = SSHTunnelForwarder(
+        (MAIN_DB_SSH_TUNNEL_HOST, MAIN_DB_SSH_TUNNEL_PORT),
+        ssh_username=MAIN_DB_SSH_TUNNEL_USER,
+        ssh_password=MAIN_DB_SSH_TUNNEL_PASSWORD or None,
+        remote_bind_address=(MAIN_DB_HOST, int(MAIN_DB_PORT)),
+        local_bind_address=("127.0.0.1", MAIN_DB_SSH_TUNNEL_LOCAL_PORT),
+    )
+    tunnel.start()
+    _MAIN_DB_TUNNEL = tunnel
+    logging.info(
+        f"SSH tunnel started to {MAIN_DB_HOST}:{MAIN_DB_PORT} via "
+        f"{MAIN_DB_SSH_TUNNEL_HOST}:{MAIN_DB_SSH_TUNNEL_PORT}, local port={tunnel.local_bind_port}"
+    )
+    return _MAIN_DB_TUNNEL
+
+
+def get_main_db_connection():
+    tunnel = _ensure_main_db_tunnel()
+
+    if tunnel is not None:
+        host = "127.0.0.1"
+        port = tunnel.local_bind_port
+    else:
+        host = MAIN_DB_HOST
+        port = int(MAIN_DB_PORT)
+
+    conn = psycopg2.connect(
+        host=host,
+        port=port,
+        user=MAIN_DB_USER,
+        password=MAIN_DB_PASSWORD,
+        dbname=MAIN_DB_DATABASE,
+        sslmode="disable",
+    )
+    return conn
+
+# =========================
+# tạo bảng embedding dùng chung (nếu muốn gom bảng)
+# ========================
 def ensure_embedding_tables():
-    """
-    Tạo bảng gemini_embeddings & qwen_embeddings nếu chưa có.
-    Hỗ trợ 2 kiểu:
-      - vector (pgvector, embedding VECTOR)
-      - jsonb (embedding JSONB)
-    """
-    conn = get_pg_connection()
+    conn = get_vector_db_connection()
     try:
         with conn.cursor() as cur:
             if EMBEDDING_STORAGE_TYPE == "vector":
                 # cần extension vector
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS gemini_embeddings (
-                        id SERIAL PRIMARY KEY,
-                        source_table TEXT NOT NULL,
-                        source_pk TEXT,
-                        row_index INT NOT NULL,
-                        text TEXT NOT NULL,
-                        embedding VECTOR,
-                        created_at TIMESTAMPTZ DEFAULT NOW()
-                    );
-                    """
-                )
                 cur.execute(
                     """
                     CREATE TABLE IF NOT EXISTS qwen_embeddings (
@@ -157,19 +215,6 @@ def ensure_embedding_tables():
                 )
             else:
                 # lưu dạng JSONB
-                cur.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS gemini_embeddings (
-                        id SERIAL PRIMARY KEY,
-                        source_table TEXT NOT NULL,
-                        source_pk TEXT,
-                        row_index INT NOT NULL,
-                        text TEXT NOT NULL,
-                        embedding JSONB,
-                        created_at TIMESTAMPTZ DEFAULT NOW()
-                    );
-                    """
-                )
                 cur.execute(
                     """
                     CREATE TABLE IF NOT EXISTS qwen_embeddings (
@@ -195,21 +240,21 @@ def insert_embedding_rows(
     raw_rows: List[Any],
     embeddings: List[List[float]],
 ):
-    """
-    Lưu embedding vào bảng:
-      - model = "gemini" -> gemini_embeddings
-      - model = "qwen"   -> qwen_embeddings
-    """
     if not embeddings:
         logging.info(f"No embeddings to insert for model={model}")
         return
 
-    if model not in ("gemini", "qwen"):
-        raise ValueError("model must be 'gemini' or 'qwen'")
+    # Xác định bảng đích trong VECTOR_DB_DATABASE
+    # Hiện tại script batch này chỉ sử dụng Qwen
+    if model == "qwen":
+        target_table = "qwen_embeddings"
+    else:
+        raise ValueError(f"Unsupported model type for batch script: {model}")
 
-    target_table = "gemini_embeddings" if model == "gemini" else "qwen_embeddings"
+    # Đảm bảo bảng embedding đã được tạo (nếu chưa có)
+    ensure_embedding_tables()
 
-    conn = get_pg_connection()
+    conn = get_vector_db_connection()
     try:
         with conn.cursor() as cur:
             for idx, (text, row, emb) in enumerate(zip(texts, raw_rows, embeddings)):
@@ -253,7 +298,7 @@ def fetch_rows_from_table(
     table_name: str,
     limit: int = 1000,
 ) -> Tuple[List[str], List[Any]]:
-    conn = get_pg_connection()
+    conn = get_main_db_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             query = f"SELECT * FROM public.\"{table_name}\" LIMIT %s;"
@@ -278,59 +323,6 @@ def fetch_rows_from_table(
     finally:
         conn.close()
 
-
-# =========================
-# 6. Gemini embedding + logging + DB save
-# =========================
-def embed_with_gemini(
-    table_name: str,
-    texts: List[str],
-    raw_rows: List[Any],
-    output_dir: str,
-) -> Tuple[List[List[float]], float, int, str]:
-    if not texts:
-        return [], 0.0, 0, ""
-
-    os.makedirs(output_dir, exist_ok=True)
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    outfile = os.path.join(
-        output_dir,
-        f"{table_name}_gemini_embeddings_{timestamp}.jsonl"
-    )
-
-    genai.configure(api_key=GEMINI_API_KEY)
-
-    embeddings: List[List[float]] = []
-    start = time.time()
-    with open(outfile, "w", encoding="utf-8") as f:
-        for idx, (t, row) in enumerate(zip(texts, raw_rows)):
-            resp = genai.embed_content(
-                model=GEMINI_EMBED_MODEL,
-                content=t,
-            )
-            emb = resp["embedding"] if isinstance(resp, dict) else resp.embedding
-            embeddings.append(emb)
-
-            record = {
-                "row_index": idx,
-                "text": t,
-                "raw_row": to_jsonable(row),
-                "embedding": to_jsonable(emb),
-            }
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-    elapsed = time.time() - start
-    token_est = estimate_tokens(texts)
-
-    logging.info(
-        f"Gemini embeddings done: {len(embeddings)} rows, "
-        f"time={elapsed:.2f}s, tokens≈{token_est}, output={outfile}"
-    )
-
-    # Lưu vào DB
-    insert_embedding_rows("gemini", table_name, texts, raw_rows, embeddings)
-
-    return embeddings, elapsed, token_est, outfile
 
 
 # =========================
@@ -399,7 +391,7 @@ def fetch_rows_batch(
     limit: int,
     offset: int,
 ) -> Tuple[List[str], List[Any]]:
-    conn = get_pg_connection()
+    conn = get_main_db_connection()
     try:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             query = f"""
@@ -431,7 +423,7 @@ def run_test(table_name: str, limit: int = 1000, batch_size: int = 100):
         f"Starting test for table='{table_name}', limit={limit}, batch={batch_size}"
     )
 
-    ensure_embedding_tables()
+    # ensure_embedding_tables()
 
     output_dir = "embeddings_output"
     os.makedirs(output_dir, exist_ok=True)
@@ -453,16 +445,6 @@ def run_test(table_name: str, limit: int = 1000, batch_size: int = 100):
 
         logging.info(
             f"Processing batch offset={offset}, size={len(texts)}"
-        )
-
-        # =====================
-        # Gemini
-        # =====================
-        embed_with_gemini(
-            table_name,
-            texts,
-            raw_rows,
-            output_dir,
         )
 
         # =====================
@@ -493,7 +475,7 @@ if __name__ == "__main__":
     log_file = setup_logging()
 
     parser = argparse.ArgumentParser(
-        description="Test embedding từ Postgres table bằng Gemini & Qwen, có log, file JSONL và lưu DB"
+        description="Test embedding từ Postgres table bằng  Qwen, có log, file JSONL và lưu DB"
     )
     parser.add_argument("--table", required=True, help="Tên bảng trong Postgres")
     parser.add_argument("--limit", type=int, default=1000, help="Số dòng tối đa")

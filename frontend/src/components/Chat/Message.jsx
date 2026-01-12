@@ -285,7 +285,7 @@ function Message({ message, onSendMessage, typing }) {
                             <TableRow key={index}>
                               <TableCell component="th" scope="row">{row.material_name}</TableCell>
                               <TableCell>{row.id_sap}</TableCell>
-                              <TableCell>{row.material_subgroup} - {row.material_group}</TableCell>
+                              <TableCell>{row.material_subgroup} </TableCell>
                               <TableCell>{row.quantity}/{row.pm_unit}</TableCell>
                               <TableCell>{row?.price?.toLocaleString("vi-VN") || ''}</TableCell>
                               <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''}</TableCell>
@@ -313,7 +313,7 @@ function Message({ message, onSendMessage, typing }) {
                             <TableRow key={index}>
                               <TableCell component="th" scope="row">{row.product_name}</TableCell>
                               <TableCell>{row.headcode}</TableCell>
-                              <TableCell width={160}>{row.category} - {row.sub_category}</TableCell>
+                              <TableCell width={160}> {row.sub_category}</TableCell>
                               <TableCell width={80}>{row.material_primary}</TableCell>
                               <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''}</TableCell>
                               <TableCell>{row.project}</TableCell>
@@ -395,7 +395,7 @@ function Message({ message, onSendMessage, typing }) {
               </TabContext>
             </Box>
           }
-          {!isUser && message.data?.success &&
+          {!isUser && message.data?.success && message.data?.suggested_prompts_mess &&
             <>
               <div>💡 <b>Gợi ý cho bạn:</b></div>
               <ReactMarkdown

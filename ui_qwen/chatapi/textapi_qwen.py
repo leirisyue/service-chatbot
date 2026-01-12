@@ -70,10 +70,11 @@ def generate_suggested_prompts(context_type: str, context_data: Dict = None, cou
     
     prompt = f"""
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
-        Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI có gợi ý để cho user có định hướng.
-
+        Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI, Mỗi câu hỏi gợi ý đều có PHÂN TÍCH, ĐỊNH HƯỚNG câu trả lời cho user RÕ RÀNG.
+        
         NGỮ CẢNH: {context_type}.
         cách xưng hô: tôi và bạn.
+        
         """
 
     if context_type == "greeting":
@@ -423,12 +424,13 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
     }}
     """
     
-    response_text = call_gemini_with_retry(model, prompt)
+    response_text = call_gemini_with_retry(model, prompt, timeout=15)
     if not response_text:
         return {
             "intent": "error",
-            "raw": "No response from AI",
-            "success": False
+            "raw": "No response from AI - timeout or API error",
+            "success": False,
+            "error_message": "Hệ thống đang quá tải. Vui lòng thử lại sau ít phút."
         }
     
     try:
@@ -469,6 +471,17 @@ def search_products(params: Dict, session_id: str = None):
     # TIER 1: Thử Hybrid trước
     try:
         result = search_products_hybrid(params)
+        
+        # Kiểm tra nếu có lỗi timeout hoặc search method cho biết không có kết quả
+        if result.get("search_method") == "timeout":
+            print("⏱️ Search timeout - returning empty products list")
+            return {
+                "products": [],
+                "search_method": "timeout",
+                "response": "Không tìm thấy sản phẩm phù hợp",
+                "success": False
+            }
+        
         if result.get("products"):
             # Cập nhật total_cost cho các sản phẩm trong hybrid search
             for product in result["products"]:
@@ -562,57 +575,37 @@ def search_products(params: Dict, session_id: str = None):
             result["can_provide_feedback"] = True
             
             return result
+    except TimeoutError as e:
+        print(f"⏱️ TIER 1 timeout: {e}")
+        # Trả về empty result thay vì fallback sang TIER 2
+        return {
+            "products": [],
+            "search_method": "timeout",
+            "response": "Không tìm thấy sản phẩm phù hợp",
+            "success": False
+        }
     except Exception as e:
+        error_str = str(e).lower()
         print(f"WARNING: TIER 1 failed: {e}")
-    
-    # TIER 2 & 3: GIỮ NGUYÊN CODE CŨ (Fallback)
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    if params.get("keywords_vector"):
-        query_text = params["keywords_vector"]
-    else:
-        query_parts = []
-        if params.get("category"): query_parts.append(params["category"])
-        if params.get("sub_category"): query_parts.append(params["sub_category"])
-        if params.get("material_primary"): query_parts.append(params["material_primary"])
-        query_text = " ".join(query_parts) if query_parts else "nội thất"
-
-    query_vector = generate_embedding_qwen(query_text)
-    
-    if not query_vector:
-        conn.close()
-        return search_products_keyword_only(params)
-    
-    # TIER 2: Pure Vector
-    try:
-        sql = """
-            SELECT headcode, product_name, category, sub_category, 
-                    material_primary, project, project_id,
-                    (description_embedding <=> %s::vector) as distance
-            FROM products_qwen
-            WHERE description_embedding IS NOT NULL
-            ORDER BY distance ASC
-            LIMIT 10
-        """
-        cur.execute(sql, [query_vector])
-        results = cur.fetchall()
-        
-        if results:
-            print(f"SUCCESS: TIER 2: {len(results)} products")
-            products = format_search_results(results[:8])
-            conn.close()
+        # Kiểm tra nếu lỗi liên quan đến timeout
+        if "timeout" in error_str or "timed out" in error_str or "canceled" in error_str:
             return {
-                "products": products, 
-                "search_method": "vector_no_filter",
-                "success": True
+                "products": [],
+                "search_method": "timeout",
+                "response": "Không tìm thấy sản phẩm phù hợp",
+                "success": False
             }
-    except Exception as e:
-        print(f"WARNING: TIER 2 failed: {e}")
     
-    # TIER 3: Keyword
-    conn.close()
-    return search_products_keyword_only(params)
+    # TIER 2 & 3: KHÔNG CHẠY NẾU TIER 1 TIMEOUT - chỉ chạy nếu TIER 1 thất bại vì lý do khác
+    # Nếu đến đây nghĩa là TIER 1 không trả về kết quả nhưng không phải timeout
+    # Vậy ta cũng nên trả về empty luôn thay vì tốn thêm thời gian
+    print("WARNING: TIER 1 returned no products, returning empty instead of fallback")
+    return {
+        "products": [],
+        "search_method": "no_results",
+        "response": "Không tìm thấy sản phẩm phù hợp",
+        "success": False
+    }
 
 def search_products_by_material(material_query: str, params: Dict):
     """
@@ -1403,9 +1396,15 @@ def chat(msg: ChatMessage):
         # print(f"\n🤖 Detected intent: {intent_data}")
         
         if intent_data.get("intent") == "error":
+            error_msg = intent_data.get("error_message", "Xin lỗi, hệ thống đang bận. Vui lòng thử lại.")
             return {
-                "response": "Xin lỗi, hệ thống đang bận. Vui lòng thử lại.",
-                "success": False
+                "response": error_msg,
+                "success": False,
+                "suggested_prompts": [
+                    "🔍 Tìm sản phẩm",
+                    "🧱 Tìm vật liệu",
+                    "💬 Trò chuyện với chuyên viên"
+                ]
             }
         
         intent = intent_data["intent"]
@@ -1433,6 +1432,7 @@ def chat(msg: ChatMessage):
         
         elif intent == "search_product":
             search_result = search_products(params, session_id=msg.session_id)
+            print(f"DEBUG: search_result: {search_result}")
             products = search_result.get("products", [])
             
             # ✅ search_products đã xử lý HẾT ranking rồi, không cần gọi gì thêm
@@ -1440,18 +1440,52 @@ def chat(msg: ChatMessage):
             ranking_summary = search_result.get("ranking_summary", {})
             result_count = len(products)
             
-            if not products:
-                suggested_prompts_mess = generate_suggested_prompts(
-                    "search_product_not_found",
-                    {"query": user_message}
-                )
+            # Kiểm tra nếu search bị timeout hoặc lỗi
+            if search_result.get("search_method") == "timeout" or (not products and search_result.get("success") == False):
+                print(f"⏱️ Search timeout or failed for query: {user_message}")
                 result_response = {
                     "response": (
-                        f'🔍 Đã tìm thấy sản phẩm: **"{search_result.get("response", "Không tìm thấy vật liệu phù hợp.")}"**.\n\n'
-                        '**Gợi ý cho bạn:**\n'
-                        f"{suggested_prompts_mess}"
+                        f"🔍 **KHÔNG TÌM THẤY SẢN PHẨM PHÙ HỢP**\n\n"
+                        f"Rất tiếc, hệ thống không tìm thấy sản phẩm phù hợp với \"{user_message}\".\n\n"
+                        f"**💡 Gợi ý cho bạn:**\n"
+                        f"• Thử với từ khóa đơn giản hơn\n"
+                        f"• Tìm theo danh mục sản phẩm\n"
+                        f"• Xem các sản phẩm phổ biến\n"
+                        f"• Liên hệ chuyên viên tư vấn"
                     ),
-                    "suggested_prompts": suggested_prompts
+                    "suggested_prompts": [
+                        "Xem danh mục bàn",
+                        "Xem danh mục ghế",
+                        "Sản phẩm phổ biến",
+                        "Liên hệ tư vấn viên"
+                    ],
+                    "products": [],
+                    "success": True,
+                }
+            elif not products:
+                try:
+                    suggested_prompts_mess = generate_suggested_prompts(
+                        "search_product_not_found",
+                        {"query": user_message}
+                    )
+                except Exception as e:
+                    print(f"WARNING: Could not generate suggestions: {e}")
+                    suggested_prompts_mess = "• Thử với từ khóa khác\n• Tìm theo danh mục sản phẩm\n• Liên hệ tư vấn viên"
+                
+                result_response = {
+                    "response": (
+                        f"🔍 **KHÔNG TÌM THẤY SẢN PHẨM PHÙ HỢP**\n\n"
+                        f"Rất tiếc, tôi không tìm thấy sản phẩm nào khớp với \"{user_message}\".\n\n"
+                        # f"**💡 Gợi ý cho bạn:**\n"
+                        # f"{suggested_prompts_mess}"
+                    ),
+                    "suggested_prompts": [
+                        "Xem danh mục sản phẩm phổ biến",
+                        "Tìm theo vật liệu",
+                        "Liên hệ chuyên viên tư vấn"
+                    ],
+                    "success": True,
+                    "suggested_prompts_mess":suggested_prompts_mess
                 }
             else:
                 response_text = ""
@@ -1539,18 +1573,20 @@ def chat(msg: ChatMessage):
             
             if not material_query:
                 result_response = {
-                    "response": "🎯 **TÌM SẢN PHẨM THEO VẬT LIỆU**\n\n"
+                    # "response": "🎯 **TÌM SẢN PHẨM THEO VẬT LIỆU**\n\n"
                                 # "Để tôi tư vấn sản phẩm phù hợp, vui lòng cho biết:\n"
                                 # "• Bạn quan tâm đến vật liệu nào? (gỗ, đá, kim loại...)\n"
                                 # "• Sản phẩm dùng cho không gian nào?\n"
                                 # "• Ngân sách dự kiến là bao nhiêu?",
-                                f"{suggested_prompts_mess}",
+                                # f"{suggested_prompts_mess}",
+                    "response": "⚠️ Hiện tại tôi chưa nhận được thông tin về vật liệu bạn muốn tìm kiếm sản phẩm. ",
                     "suggested_prompts": [
                         "Sản phẩm làm từ gỗ sồi tự nhiên",
                         "Nội thất kim loại cho văn phòng",
                         "Bàn đá marble cao cấp",
                         "Ghế vải bọc chống thấm"
-                    ]
+                    ],
+                    "suggested_prompts_mess":suggested_prompts_mess
                 }
             else:
                 search_result = search_products_by_material(material_query, params)
@@ -1663,9 +1699,9 @@ def chat(msg: ChatMessage):
                     result_response = {
                         "response": response_text,
                         "materials": materials,
-                        "search_method": "cross_table_product_to_material", # Đánh dấu để UI nhận biết
-                        "ranking_summary": ranking_summary,   # Truyền xuống UI
-                        "can_provide_feedback": True,          # Bật nút Feedback
+                        "search_method": "cross_table_product_to_material", 
+                        "ranking_summary": ranking_summary,
+                        "can_provide_feedback": True,
                         "success": True
                     }
                     
@@ -1713,22 +1749,32 @@ def chat(msg: ChatMessage):
             ranking_summary = get_ranking_summary(materials)
                         
             if not materials:
-                tmp = generate_suggested_prompts(
-                    "search_material_not_found",
-                    {"query": user_message}
-                )
-                suggested_prompts_mess = format_suggested_prompts(tmp)
+                try:
+                    tmp = generate_suggested_prompts(
+                        "search_material_not_found",
+                        {"query": user_message}
+                    )
+                    suggested_prompts_mess = format_suggested_prompts(tmp)
+                except Exception as e:
+                    print(f"WARNING: Could not generate suggestions: {e}")
+                    suggested_prompts_mess = "• Thử với từ khóa khác\n• Xem danh mục vật liệu\n• Liên hệ tư vấn viên"
+                
                 result_response = {
-                    "response": f'🔍 Đã tìm thấy sản phẩm: **"{search_result.get("response", "Không tìm thấy vật liệu phù hợp.")}"**.\n\n'
-                    "**Đề xuất:**\n"
-                            f"{suggested_prompts_mess}",
+                    "response": (
+                        f"🔍 **KHÔNG TÌM THẤY VẬT LIỆU PHÙ HỢP**\n\n"
+                        f"Rất tiếc, tôi không tìm thấy vật liệu nào khớp với \"{user_message}\".\n\n"
+                        # f"**💡 Đề xuất:**\n"
+                        # f"{suggested_prompts_mess}"
+                    ),
                     "suggested_prompts": [
                         "Vật liệu chịu nhiệt",
                         "Gỗ công nghiệp cao cấp",
                         "Đá tự nhiên trang trí",
                         "Vải bọc chống thấm"
                     ],
-                    "materials": []
+                    "materials": [],
+                    "suggested_prompts_mess":suggested_prompts_mess,
+                    "success": True
                 }
             else:
                 response_text = ""
@@ -1883,13 +1929,61 @@ def chat(msg: ChatMessage):
             
         return result_response
     
+    except TimeoutError as e:
+        print(f"Timeout Error: {e}")
+        return {
+            "response": (
+                "⏱️ **YÊU CẦU MẤT QUÁ LÂU**\n\n"
+                "Xin lỗi, hệ thống không thể xử lý yêu cầu của bạn trong thời gian cho phép.\n\n"
+                "**💡 Vui lòng thử:**\n"
+                "• Đơn giản hóa yêu cầu tìm kiếm\n"
+                "• Thử lại sau ít phút\n"
+                "• Liên hệ trực tiếp với chuyên viên tư vấn"
+            ),
+            "success": False,
+            "suggested_prompts": [
+                "🔍 Tìm sản phẩm đơn giản",
+                "🧱 Xem danh mục vật liệu",
+                "💬 Liên hệ tư vấn viên"
+            ]
+        }
     except Exception as e:
         print(f"Server Error: {e}")
         import traceback
         traceback.print_exc()
+        
+        # Check if it's a timeout-related error
+        error_str = str(e).lower()
+        if "timeout" in error_str or "timed out" in error_str:
+            return {
+                "response": (
+                    "⏱️ **KHÔNG TÌM THẤY KẾT QUẢ PHÙ HỢP**\n\n"
+                    "Hệ thống không tìm thấy danh sách phù hợp với yêu cầu của bạn.\n\n"
+                    "**💡 Gợi ý:**\n"
+                    "• Thử từ khóa tìm kiếm khác\n"
+                    "• Xem các danh mục sản phẩm có sẵn\n"
+                    "• Liên hệ chuyên viên để được tư vấn chi tiết"
+                ),
+                "success": False,
+                "suggested_prompts": [
+                    "Xem danh mục sản phẩm",
+                    "Tìm theo vật liệu",
+                    "Liên hệ tư vấn viên"
+                ]
+            }
+        
         return {
-            "response": f"WARNING: Lỗi hệ thống: {str(e)}",
-            "success": False
+            "response": (
+                "⚠️ **LỖI HỆ THỐNG**\n\n"
+                "Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu của bạn.\n\n"
+                "Vui lòng thử lại sau ít phút hoặc liên hệ với bộ phận hỗ trợ."
+            ),
+            "success": False,
+            "suggested_prompts": [
+                "Thử lại",
+                "Xem danh mục",
+                "Liên hệ hỗ trợ"
+            ]
         }
 
 @router.post("/batch/products", tags=["Chat qwen"])

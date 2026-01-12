@@ -224,11 +224,40 @@ def send_message(message: str):
                 "message": message,
                 "context": st.session_state.context
             },
-            timeout=30
+            timeout=45  # Tăng timeout lên 45s để xử lý các truy vấn phức tạp
         )
         return response.json()
+    except requests.exceptions.Timeout:
+        return {
+            "response": (
+                "⏱️ **YÊU CẦU MẤT QUÁ LÂU**\n\n"
+                "Hệ thống không tìm thấy danh sách phù hợp trong thời gian cho phép.\n\n"
+                "**💡 Vui lòng thử:**\n"
+                "• Đơn giản hóa yêu cầu tìm kiếm\n"
+                "• Thử lại sau ít phút\n"
+                "• Liên hệ trực tiếp với chuyên viên tư vấn"
+            ),
+            "success": False,
+            "suggested_prompts": [
+                "🔍 Tìm sản phẩm đơn giản",
+                "🧱 Xem danh mục vật liệu",
+                "💬 Liên hệ tư vấn viên"
+            ]
+        }
+    except requests.exceptions.RequestException as e:
+        return {
+            "response": f"⚠️ Lỗi kết nối: {str(e)}",
+            "success": False
+        }
     except Exception as e:
-        return {"response": f"⚠️ Lỗi kết nối: {str(e)}"}
+        return {
+            "response": (
+                "⚠️ **KHÔNG TÌM THẤY KẾT QUẢ PHÙ HỢP**\n\n"
+                "Hệ thống không tìm thấy danh sách phù hợp với yêu cầu của bạn.\n\n"
+                "Vui lòng thử lại hoặc liên hệ bộ phận hỗ trợ."
+            ),
+            "success": False
+        }
 
 def add_message(role: str, content: str, data=None):
     """Thêm tin nhắn vào history"""

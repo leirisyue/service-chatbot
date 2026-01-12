@@ -1448,10 +1448,11 @@ def chat(msg: ChatMessage):
                 result_response = {
                     "response": (
                         f'🔍 Đã tìm thấy sản phẩm: **"{search_result.get("response", "Không tìm thấy vật liệu phù hợp.")}"**.\n\n'
-                        '**Gợi ý cho bạn:**\n'
-                        f"{suggested_prompts_mess}"
+                        # '**Gợi ý cho bạn:**\n'
+                        # f"{suggested_prompts_mess}"
                     ),
-                    "suggested_prompts": suggested_prompts
+                    "suggested_prompts": suggested_prompts,
+                    "suggested_prompts_mess": suggested_prompts_mess,
                 }
             else:
                 response_text = ""
