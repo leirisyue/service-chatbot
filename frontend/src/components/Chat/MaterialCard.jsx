@@ -42,7 +42,7 @@ function MaterialCard({ material, onDetailClick }) {
           </div>
           : <div className="price-badge no-price" title="Chưa có giá">❓Liên hệ</div>}
       </div>
-      <div className="material-actions" style={{ position: 'absolute', bottom: '10px', width: '90%' }}>
+      <div className="material-actions" style={{ position: 'absolute', bottom: '10px', width: '94%' }}>
         <button
           className="btn-detail"
           onClick={onDetailClick}

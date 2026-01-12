@@ -23,7 +23,7 @@ function ProductCard({ product, onMaterialClick, onPriceClick }) {
           </p>
         }
       </div>
-      <div className="product-actions" style={{ position: 'absolute', width: '90%', bottom: '15px' }}>
+      <div className="product-actions" style={{ position: 'absolute', width: '94%', bottom: '15px' }}>
         <button
           className="btn-material"
           onClick={onMaterialClick}

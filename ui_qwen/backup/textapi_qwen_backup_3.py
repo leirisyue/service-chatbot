@@ -1262,12 +1262,10 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     except:
         pass
     
-    response = f"""
-                🧱 **CHI TIẾT NGUYÊN VẬT LIỆU**
-                📦 **Tên:** {material['material_name']}
-                🏷️ **Mã SAP:** `{material['id_sap']}`
-                📂 **Nhóm:** {material['material_group']}
-            """
+    response = f"🧱 **CHI TIẾT NGUYÊN VẬT LIỆU**\n\n"
+    response += f"📦 **Tên:** {material['material_name']}\n"
+    response += f"🏷️ **Mã SAP:** `{material['id_sap']}`\n"
+    response += f"📂 **Nhóm:** {material['material_group']}\n"
                     
     if material.get('material_subgroup'):
         response += f" - {material['material_subgroup']}"
