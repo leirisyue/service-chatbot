@@ -287,8 +287,8 @@ function Message({ message, onSendMessage, typing }) {
                               <TableCell>{row.id_sap}</TableCell>
                               <TableCell>{row.material_group} - {row.material_subgroup}</TableCell>
                               <TableCell>{row.quantity}/{row.pm_unit}</TableCell>
-                              <TableCell>{row?.price.toLocaleString("vi-VN")}</TableCell>
-                              <TableCell>{row?.total_cost.toLocaleString("vi-VN")}</TableCell>
+                              <TableCell>{row?.price?.toLocaleString("vi-VN") || ''}</TableCell>
+                              <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -315,7 +315,7 @@ function Message({ message, onSendMessage, typing }) {
                               <TableCell>{row.headcode}</TableCell>
                               <TableCell width={160}>{row.category} - {row.sub_category}</TableCell>
                               <TableCell width={80}>{row.material_primary}</TableCell>
-                              <TableCell>{row?.total_cost.toLocaleString("vi-VN")}</TableCell>
+                              <TableCell>{row?.total_cost.toLocaleString("vi-VN") || ''}</TableCell>
                               <TableCell>{row.project}</TableCell>
                             </TableRow>
                           ))}
