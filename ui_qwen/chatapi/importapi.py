@@ -145,7 +145,7 @@ async def import_materials(file: UploadFile = File(...)):
         
         if missing:
             return {
-                "message": f"❌ Thiếu các cột bắt buộc: {', '.join(missing)}",
+                "message": f"ERROR: Thiếu các cột bắt buộc: {', '.join(missing)}",
                 "required_columns": required,
                 "your_columns": list(df.columns)
             }
@@ -234,7 +234,7 @@ async def import_materials(file: UploadFile = File(...)):
         }
         
     except Exception as e:
-        return {"message": f"❌ Lỗi: {str(e)}"}
+        return {"message": f"ERROR: Lỗi: {str(e)}"}
 
 @router.post("/import/product-materials", tags=["Importapi"])
 async def import_product_materials(file: UploadFile = File(...)):
@@ -255,7 +255,7 @@ async def import_product_materials(file: UploadFile = File(...)):
         
         if missing:
             return {
-                "message": f"❌ Thiếu cột bắt buộc: {', '.join(missing)}",
+                "message": f"ERROR: Thiếu cột bắt buộc: {', '.join(missing)}",
                 "required_columns": required,
                 "your_columns": list(df.columns)
             }
@@ -351,9 +351,9 @@ async def import_product_materials(file: UploadFile = File(...)):
         
         msg = f"✅ Import thành công {imported} dòng."
         if auto_created_materials > 0:
-            msg += f"\n🆕 Đã tự động tạo mới {auto_created_materials} mã vật liệu (chưa có thông tin)."
+            msg += f"\nINFO: Đã tự động tạo mới {auto_created_materials} mã vật liệu (chưa có thông tin)."
         if skipped > 0:
-            msg += f"\n⚠️ Bỏ qua {skipped} dòng do không có mã vật liệu."
+            msg += f"\nWARNING: Bỏ qua {skipped} dòng do không có mã vật liệu."
             
         return {
             "message": msg,
@@ -365,4 +365,4 @@ async def import_product_materials(file: UploadFile = File(...)):
         }
         
     except Exception as e:
-        return {"message": f"❌ Lỗi hệ thống: {str(e)}"}
+        return {"message": f"ERROR: Lỗi hệ thống: {str(e)}"}

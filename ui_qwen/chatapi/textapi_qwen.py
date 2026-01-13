@@ -477,7 +477,7 @@ def search_products(params: Dict, session_id: str = None):
         
         # Kiểm tra nếu có lỗi timeout hoặc search method cho biết không có kết quả
         if result.get("search_method") == "timeout":
-            print("⏱️ Search timeout - returning empty products list")
+            print("TIMER: Search timeout - returning empty products list")
             return {
                 "products": [],
                 "search_method": "timeout",
@@ -546,20 +546,20 @@ def search_products(params: Dict, session_id: str = None):
                     product['base_score'] = min(1.0, product['base_score'] + boost)
                     product['query_match_count'] = match_count
                     product['query_boost'] = boost
-                    print(f"  ✅ Boosted {product['headcode']}: +{boost:.3f} (matches: {match_count})")
+                    print(f"  INFO: Boosted {product['headcode']}: +{boost:.3f} (matches: {match_count})")
             
             # ========== STEP 2: PERSONALIZATION ==========
             # ✅ CHỈ áp dụng nếu có session_id VÀ user có history
             has_personalization = False
             
             if session_id:
-                print(f"\n🎯 Personalization for {session_id[:8]}...")
+                print(f"\nINFO: Personalization for {session_id[:8]}...")
                 
             if not has_personalization:
                 for product in products:
                     product['personal_score'] = 0.5
             
-            print(f"✅ Personalization done\n")
+            print(f"INFO: Personalization done\n")
             
             # ========== STEP 3: FEEDBACK SCORES ==========
             print(f"MAIN: Feedback Scoring...")
@@ -623,7 +623,7 @@ def search_products(params: Dict, session_id: str = None):
                 if product.get('feedback_count', 0) > 0:
                     product['has_feedback'] = True
             
-            print(f"✅ Final Ranking complete\n")
+            print(f"INFO: Final Ranking complete\n")
             
             result["products"] = products
             result["ranking_summary"] = get_ranking_summary(products)
@@ -631,7 +631,7 @@ def search_products(params: Dict, session_id: str = None):
             
             return result
     except TimeoutError as e:
-        print(f"⏱️ TIER 1 timeout: {e}")
+        print(f"TIMER: TIER 1 timeout: {e}")
         # Trả về empty result thay vì fallback sang TIER 2
         return {
             "products": [],

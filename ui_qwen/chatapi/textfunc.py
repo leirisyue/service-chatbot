@@ -449,14 +449,14 @@ def search_products_hybrid(params: Dict):
                 if hasattr(signal, 'SIGALRM'):
                     signal.alarm(0)
                 
-                print(f"✅ Found {len(result)} products (one per category)")
+                print(f"SUCCESS: Found {len(result)} products (one per category)")
                 return {
                     "products": result,
                     "search_method": "product_list_by_category",
                     "expanded_query": base
                 }
         except Exception as e:
-            print(f"❌ Error in product list query: {e}")
+            print(f"ERROR: Error in product list query: {e}")
             # Fall through to normal search if error
     
     # print(f"\n🔍 Query: {base}")
@@ -524,7 +524,7 @@ def search_products_hybrid(params: Dict):
         candidates = cur.fetchall()
         
         if not candidates:
-            print(f"❌ No products found with main word '{main_word}' in product_name")
+            print(f"ERROR: No products found with main word '{main_word}' in product_name")
             conn.close()
             if hasattr(signal, 'SIGALRM'):
                 signal.alarm(0)
@@ -548,7 +548,7 @@ def search_products_hybrid(params: Dict):
             "error": "search_timeout"
         }
     except Exception as e:
-        print(f"❌ Search error: {e}")
+        print(f"ERROR: Search error: {e}")
         try:
             conn.close()
         except:
@@ -571,7 +571,7 @@ def search_products_hybrid(params: Dict):
     # Continue với logic cũ nếu có candidates
     try:
         
-        print(f"✅ Found {len(candidates)} candidates with '{main_word}'")
+        print(f"SUCCESS: Found {len(candidates)} candidates with '{main_word}'")
         
         # BƯỚC 2: Tính vector similarity cho từ PHỤ
         # Tăng ngưỡng để loại bỏ sản phẩm không liên quan
@@ -658,7 +658,7 @@ def search_products_hybrid(params: Dict):
         filtered_products = filtered_products[:10]
         
         if filtered_products:
-            print(f"✅ Final: {len(filtered_products)} products (main: '{main_word}', secondary match, similarity >= {SIMILARITY_THRESHOLD})")
+            print(f"SUCCESS: Final: {len(filtered_products)} products (main: '{main_word}', secondary match, similarity >= {SIMILARITY_THRESHOLD})")
             for i, p in enumerate(filtered_products[:3], 1):
                 print(f"  {i}. {p['product_name']} (score: {p['final_score']}, sim: {p['similarity']})")
             
