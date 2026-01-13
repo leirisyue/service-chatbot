@@ -241,28 +241,65 @@ async def search_by_image(
         search_result = search_products(params, session_id=session_id)
         products = search_result.get("products", [])
         
+        # ========== IMAGE MATCHING VALIDATION ==========
+        # Kiểm tra sản phẩm có khớp với ai_interpretation không
+        ai_interpretation = ai_result.get("visual_description", "").lower()
+        
+        for product in products:
+            product_name = (product.get('product_name') or '').lower()
+            category = (product.get('category') or '').lower()
+            
+            # Kiểm tra tên hoặc danh mục có trong ai_interpretation không
+            name_match = any(word in ai_interpretation for word in product_name.split() if len(word) > 2)
+            category_match = category in ai_interpretation
+            
+            # Nếu không khớp -> trừ base_score
+            if not name_match and not category_match:
+                current_score = product.get('base_score', 0.5)
+                penalty = 0.25  # Trừ 0.25 điểm
+                product['base_score'] = max(0, current_score - penalty)
+                product['image_mismatch'] = True
+                product['penalty_applied'] = penalty
+                print(f"  ⚠️ Image mismatch penalty for {product.get('headcode')}: {current_score:.3f} -> {product['base_score']:.3f}")
+            else:
+                product['image_mismatch'] = False
+        
+        # Phân loại sản phẩm theo base_score
+        products_main = [p for p in products if p.get('base_score', 0) >= 0.6]
+        products_low_confidence = [p for p in products if p.get('base_score', 0) < 0.6]
+        
+        print(f"INFO: Image search - Main products: {len(products_main)}, Low confidence: {len(products_low_confidence)}")
+        
         histories.save_chat_to_histories(
             email="test@gmail.com",
             session_id=session_id,
             question="[IMAGE_UPLOAD]",
-            answer=f"Phân tích ảnh: {ai_result.get('visual_description', 'N/A')[:100]}... | Tìm thấy {len(products)} sản phẩm"
+            answer=f"Phân tích ảnh: {ai_result.get('visual_description', 'N/A')[:100]}... | Tìm thấy {len(products_main)} sản phẩm (High confidence)"
         )
 
-        if not products:
+        # Nếu không có sản phẩm nào đạt base_score >= 0.6
+        if not products_main:
             return {
                 "response": f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm nội thất')}**.\n\n"
-                        f"Tuy nhiên, không tìm thấy sản phẩm tương tự trong kho dữ liệu.\n\n"
-                        f"💡 Gợi ý: Thử mô tả bằng từ khóa hoặc upload ảnh rõ hơn.",
-                "products": [],
+                        f"⚠️ Không tìm thấy sản phẩm phù hợp với độ tin cậy cao.\n\n"
+                        f"💡 **Gợi ý**: Bạn có thể mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác. Tôi sẽ gợi ý cho bạn danh sách sản phẩm",
+                "products": None,
+                "productLowConfidence": products_low_confidence[:5] if products_low_confidence else [],
                 "ai_interpretation": ai_result.get("visual_description", ""),
+                "search_method": "image_vector"
             }
         
         return {
             "response": f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm')}**.\n\n"
-                       f"✅ Đã tìm thấy **{len(products)} sản phẩm** tương đồng:",
-            "products": products,
+                       f"✅ Đã tìm thấy **{len(products_main)} sản phẩm** phù hợp:",
+            "products": products_main,
+            "productLowConfidence": products_low_confidence[:5] if products_low_confidence else [],
             "ai_interpretation": ai_result.get("visual_description", ""),
-            "search_method": "image_vector"
+            "search_method": "image_vector",
+            "confidence_summary": {
+                "high_confidence": len(products_main),
+                "low_confidence": len(products_low_confidence)
+            }
         }
     
     except Exception as e:

@@ -256,7 +256,10 @@ def process_user_input(user_input: str):
         if response.get("materials"):
             st.session_state.context["current_materials"] = response["materials"]
         
-        add_message("bot", response.get("response", "Xin lỗi, tôi không hiểu."), data=response)
+        add_message("bot", response.get({
+            "response": f"Không tìm thấy sản phẩm phù hợp. Hoặc yêu cầu của bạn chưa rõ ràng. Hãy mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác",
+            "suggested_prompts":["🔍 Danh sách sản phẩm", "🧱 Danh sách vật liệu"]
+            }), data=response)
         
         if response.get("suggested_prompts"):
             st.session_state.suggested_prompts = response["suggested_prompts"]
