@@ -493,6 +493,58 @@ def search_products(params: Dict, session_id: str = None):
             for product in products:
                 product['base_score'] = float(product.get('similarity', 0.5))
             
+            # ========== STEP 1.5: QUERY MATCHING BOOST ==========
+            # Tăng base_score nếu query xuất hiện trong các trường của product
+            query_keywords = params.get("keywords_vector", "").lower().split()
+            
+            for product in products:
+                boost = 0.0
+                
+                # Các trường cần kiểm tra
+                product_name = (product.get('product_name') or '').lower()
+                category = (product.get('category') or '').lower()
+                sub_category = (product.get('sub_category') or '').lower()
+                material_primary = (product.get('material_primary') or '').lower()
+                headcode = (product.get('headcode') or '').lower()
+                
+                # Đếm số từ khóa xuất hiện
+                match_count = 0
+                for keyword in query_keywords:
+                    if len(keyword) < 2:  # Bỏ qua từ quá ngắn
+                        continue
+                    
+                    # Tăng điểm nếu từ khóa xuất hiện trong tên sản phẩm (quan trọng nhất)
+                    if keyword in product_name:
+                        boost += 0.15
+                        match_count += 1
+                    
+                    # Tăng điểm nếu xuất hiện trong danh mục
+                    if keyword in category:
+                        boost += 0.08
+                        match_count += 1
+                    
+                    # Tăng điểm nếu xuất hiện trong danh mục phụ
+                    if keyword in sub_category:
+                        boost += 0.06
+                        match_count += 1
+                    
+                    # Tăng điểm nếu xuất hiện trong vật liệu chính
+                    if keyword in material_primary:
+                        boost += 0.05
+                        match_count += 1
+                    
+                    # Tăng điểm nếu xuất hiện trong mã sản phẩm
+                    if keyword in headcode:
+                        boost += 0.04
+                        match_count += 1
+                
+                # Cập nhật base_score (giới hạn tối đa 1.0)
+                if boost > 0:
+                    product['base_score'] = min(1.0, product['base_score'] + boost)
+                    product['query_match_count'] = match_count
+                    product['query_boost'] = boost
+                    print(f"  ✅ Boosted {product['headcode']}: +{boost:.3f} (matches: {match_count})")
+            
             # ========== STEP 2: PERSONALIZATION ==========
             # ✅ CHỈ áp dụng nếu có session_id VÀ user có history
             has_personalization = False
@@ -736,8 +788,50 @@ def search_products_by_material(material_query: str, params: Dict):
         
         print(f"SUCCESS: Found {len(products_list)} products using these materials")
         
+        # Add base_score for consistency and apply query matching boost
+        query_keywords = material_query.lower().split()
+        
+        for product in products_list:
+            # Set initial base_score based on relevance_score
+            product['base_score'] = min(1.0, 0.5 + (product['relevance_score'] * 0.1))
+            
+            # Apply query matching boost
+            boost = 0.0
+            product_name = (product.get('product_name') or '').lower()
+            category = (product.get('category') or '').lower()
+            sub_category = (product.get('sub_category') or '').lower()
+            material_primary = (product.get('material_primary') or '').lower()
+            
+            match_count = 0
+            for keyword in query_keywords:
+                if len(keyword) < 2:
+                    continue
+                
+                if keyword in product_name:
+                    boost += 0.15
+                    match_count += 1
+                if keyword in category:
+                    boost += 0.08
+                    match_count += 1
+                if keyword in sub_category:
+                    boost += 0.06
+                    match_count += 1
+                if keyword in material_primary:
+                    boost += 0.05
+                    match_count += 1
+            
+            if boost > 0:
+                product['base_score'] = min(1.0, product['base_score'] + boost)
+                product['query_match_count'] = match_count
+                product['query_boost'] = boost
+        
+        # Split products based on base_score
+        products_high = [p for p in products_list if p.get('base_score', 0) >= 0.8][:10]
+        products_bonus = [p for p in products_list if 0.65 < p.get('base_score', 0) < 0.8]
+        
         return {
-            "products": products_list[:10],
+            "products": products_high,
+            "productBonuslist": products_bonus,
             "search_method": "cross_table_material_to_product",
             "matched_materials": material_names,
             "explanation": f"Tìm thấy sản phẩm sử dụng: {', '.join(material_names[:3])}",

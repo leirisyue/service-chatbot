@@ -491,6 +491,24 @@
   40% { transform: scale(1); }
 }
 
+.thinking-text {
+  color: #667eea;
+  font-size: 0.9rem;
+  font-style: italic;
+  animation: fadeIn 0.5s ease-in;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .welcome-md p {
   margin: 0;
 }
