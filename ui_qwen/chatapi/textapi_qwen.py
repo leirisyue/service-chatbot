@@ -350,6 +350,9 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
        - **query_material_detail**: Xem chi tiết VẬT LIỆU + sản phẩm sử dụng (VD: "Chi tiết gỗ sồi", "Xem vật liệu này dùng ở đâu")
        - **list_material_groups**: Liệt kê nhóm vật liệu (VD: "Các loại gỗ", "Danh sách đá")
 
+       **LISTING FLOW:**
+       - **list_products_by_category**: Liệt kê danh sách sản phẩm theo các danh mục khác nhau (VD: "Danh sách sản phẩm", "Xem tất cả sản phẩm", "Liệt kê sản phẩm theo danh mục")
+
         ----------------------------------------------------------------
        **[NEW] CROSS-TABLE INTENTS (BỔ SUNG – KHÔNG THAY ĐỔI LOGIC CŨ):**
         - **search_product_by_material**: Tìm sản phẩm LÀM TỪ vật liệu cụ thể
@@ -404,7 +407,7 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
 
     OUTPUT FORMAT (JSON ONLY - no markdown backticks):
     {{
-        "intent": "search_product|search_product_by_material|search_material_for_product|query_product_materials|calculate_product_cost|search_material|query_material_detail|list_material_groups|greeting|unknown",
+        "intent": "search_product|search_product_by_material|search_material_for_product|query_product_materials|calculate_product_cost|search_material|query_material_detail|list_material_groups|list_products_by_category|greeting|unknown",
         "entity_type": "product|material|unknown",
         "params": {{
             "category": "String hoặc null",
@@ -1543,6 +1546,82 @@ def list_material_groups():
         "success": True
     }
 
+def list_products_by_category():
+    """Liệt kê danh sách sản phẩm theo các danh mục khác nhau"""
+    conn = get_db()
+    cur = conn.cursor(cursor_factory=RealDictCursor)
+    
+    # Lấy danh sách sản phẩm theo category, giới hạn mỗi category 5 sản phẩm
+    sql = """
+        WITH ranked_products AS (
+            SELECT 
+                headcode,
+                product_name,
+                category,
+                sub_category,
+                material_primary,
+                ROW_NUMBER() OVER (PARTITION BY category ORDER BY product_name) as rn
+            FROM products_qwen
+            WHERE category IS NOT NULL
+        )
+        SELECT 
+            headcode,
+            product_name,
+            category,
+            sub_category,
+            material_primary
+        FROM ranked_products
+        WHERE rn <= 1
+        ORDER BY category, product_name
+    """
+    
+    cur.execute(sql)
+    products = cur.fetchall()
+    conn.close()
+    
+    if not products:
+        return {
+            "response": "Chưa có dữ liệu sản phẩm.",
+            "success": False
+        }
+    
+    # Nhóm sản phẩm theo category
+    categories = {}
+    for prod in products:
+        cat = prod['category']
+        if cat not in categories:
+            categories[cat] = []
+        
+        # Thêm total_cost cho mỗi sản phẩm
+        prod_dict = dict(prod)
+        prod_dict['total_cost'] = calculate_product_total_cost(prod['headcode'])
+        categories[cat].append(prod_dict)
+    
+    response = f"📦 **DANH SÁCH SẢN PHẨM THEO DANH MỤC ({len(categories)} danh mục):**\n\n"
+    
+    all_products = []
+    for idx, (cat_name, prods) in enumerate(sorted(categories.items()), 1):
+    #     response += f"### {idx}. {cat_name} ({len(prods)} sản phẩm)\n\n"
+        
+    #     for prod_idx, prod in enumerate(prods, 1):
+    #         response += f"   {prod_idx}. **{prod['product_name']}** (`{prod['headcode']}`)\n"
+    #         if prod.get('sub_category'):
+    #             response += f"      • Danh mục phụ: {prod['sub_category']}\n"
+    #         if prod.get('material_primary'):
+    #             response += f"      • Vật liệu chính: {prod['material_primary']}\n"
+        
+    #     response += "\n"
+        all_products.extend(prods)
+    
+    response += "\n💡 **Gợi ý:** Chọn một sản phẩm để xem chi tiết hoặc tính chi phí.\n"
+    
+    return {
+        "response": response,
+        "products": all_products,
+        "categories": list(categories.keys()),
+        "success": True
+    }
+
 # ================================================================================================
 # API ENDPOINTS
 # ================================================================================================
@@ -1692,7 +1771,7 @@ def chat(msg: ChatMessage):
                         f"💰 Phân tích chi phí {products[0]['headcode']}",
                         f"🧱 Xem cấu tạo vật liệu {products[0]['headcode']}",
                         f"🎯 So sánh với sản phẩm tương tự",
-                        "📞 Kết nối với chuyên viên tư vấn"
+                        f"📞 Kết nối với chuyên viên tư vấn"
                     ]
                     
                     tmp = generate_suggested_prompts(
@@ -2025,6 +2104,25 @@ def chat(msg: ChatMessage):
         elif intent == "list_material_groups":
             result_response = list_material_groups()
         
+        elif intent == "list_products_by_category":
+            result_response = list_products_by_category()
+            if result_response.get("success"):
+                products = result_response.get("products", [])
+                try:
+                    tmp = generate_suggested_prompts(
+                        "list_products_by_category",
+                        {"product_count": len(products), "categories": result_response.get("categories", [])}
+                    )
+                    suggested_prompts_mess = format_suggested_prompts(tmp)
+                    result_response["suggested_prompts_mess"] = suggested_prompts_mess
+                except Exception as e:
+                    print(f"WARNING: Could not generate suggestions: {e}")
+                    result_response["suggested_prompts"] = [
+                        "Tìm sản phẩm cụ thể",
+                        "Xem bảng giá",
+                        "Tư vấn thiết kế"
+                    ]
+        
         # UNKNOWN
         else:
             result_response = {
@@ -2041,15 +2139,15 @@ def chat(msg: ChatMessage):
                 ]
             }
         
-        # Lấy thông tin mở rộng từ kết quả tìm kiếm
-        expanded = None
-        keywords = []
+        # # Lấy thông tin mở rộng từ kết quả tìm kiếm
+        # expanded = None
+        # keywords = []
         
-        if intent == "search_product" and result_response.get("data"):
-            expanded = result_response["data"].get("expanded_query")
-            # Lấy keywords từ params
-            if params.get("keywords_vector"):
-                keywords = extract_product_keywords(params["keywords_vector"])
+        # if intent == "search_product" and result_response.get("data"):
+        #     expanded = result_response["data"].get("expanded_query")
+        #     # Lấy keywords từ params
+        #     if params.get("keywords_vector"):
+        #         keywords = extract_product_keywords(params["keywords_vector"])
                 
         # print(f"SUCCESS => Final response: {result_response.get('materials', '')}, count: {result_count}")
         listProducts = listProducts or result_response.get("products", []) or result_response.get("materials", [])

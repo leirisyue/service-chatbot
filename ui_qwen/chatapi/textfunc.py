@@ -671,7 +671,7 @@ def search_products_hybrid(params: Dict):
                 "secondary_words": secondary_words
             }
         else:
-            print(f"❌ No products meet similarity threshold (>= {SIMILARITY_THRESHOLD})")
+            print(f"ERROR: No products meet similarity threshold (>= {SIMILARITY_THRESHOLD})")
             conn.close()
             return {
                 "products": [],
@@ -890,7 +890,7 @@ def calculate_personalized_score(
         return personal_score
         
     except Exception as e:
-        print(f"⚠️ Personalization error: {e}")
+        print(f"WARNING: Personalization error: {e}")
         return 0.5
 
 def generate_consolidated_report(product_headcodes: List[str]) -> BytesIO:
