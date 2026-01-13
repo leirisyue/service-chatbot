@@ -67,3 +67,6 @@ cp .env.example .env
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
+
+
+đang tìm kiếm trong cơ sở dữ liệu

@@ -179,16 +179,17 @@ async def search_by_image(
         prompt = """
         Đóng vai chuyên viên tư vấn vật tư AA corporation (Nội thất cao cấp).
         Phân tích ảnh nội thất này để trích xuất thông tin tìm kiếm Database.
-        Phân tích chi tiết về hình dáng, vật liệu, màu sắc, phong cách thiết kế.
-        Trả lời như một chuyên viên bán hàng chuyên nghiệp.
         
         OUTPUT JSON ONLY (no markdown, no backticks):
         {
-            "category": "Loại SP (Bàn, Ghế, Sofa...)",
-            "visual_description": "Mô tả chi tiết kỹ thuật dùng cho Vector Search",
-            "material_detected": "Vật liệu chính (Gỗ, Da, Vải, Đá...)",
+            "category": "Loại SP (Bàn, Ghế, Sofa, Tủ, Giường, Đèn, Kệ...)",
+            "visual_description": "Mô tả chi tiết cho khách hàng hiểu sản phẩm",
+            "search_keywords": "CHỈ 1-2 TỪ KHÓA ĐƠN GIẢN NHẤT (VD: bàn làm việc, ghế sofa, tủ gỗ, giường ngủ)",
+            "material_detected": "Vật liệu chính (Gỗ, Da, Vải, Đá, Kim loại...)",
             "color_tone": "Màu chủ đạo"
         }
+        
+        LƯU Ý: search_keywords PHẢI CỰC KỲ NGẮN GỌN, CHỈ TÊN LOẠI SẢN PHẨM. VD: "bàn làm việc" KHÔNG PHẢI "bàn làm việc gỗ hiện đại màu nâu"
         """
         
         response = model.generate_content([prompt, img])
@@ -202,6 +203,7 @@ async def search_by_image(
         clean = response.text.strip()
         
         if "```json" in clean:
+            
             clean = clean.split("```json")[1].split("```")[0].strip()
         elif "```" in clean:
             clean = clean.split("```")[1].split("```")[0].strip()
@@ -212,12 +214,27 @@ async def search_by_image(
             print(f"JSON Parse Error: {e}")
             ai_result = {
                 "visual_description": clean[:200],
+                "search_keywords": "",
                 "category": "Nội thất"
             }
         
+        # Lấy search_keywords và rút gọn nếu quá dài
+        search_keywords = ai_result.get("search_keywords", "").strip()
+        category = ai_result.get("category", "")
+        
+        # Nếu search_keywords quá dài (>50 ký tự) hoặc rỗng, dùng category
+        if not search_keywords or len(search_keywords) > 50:
+            search_text = category  # Chỉ dùng category đơn giản nhất
+            print(f"INFO: Using category as search term: {search_text}")
+        else:
+            # Lấy tối đa 3 từ đầu tiên của search_keywords
+            words = search_keywords.split()[:3]
+            search_text = " ".join(words)
+            print(f"INFO: Using simplified keywords: {search_text}")
+        
         params = {
-            "category": ai_result.get("category"),
-            "keywords_vector": ai_result.get("visual_description"),
+            "category": category,
+            "keywords_vector": search_text,  # Từ khóa CỰC KỲ đơn giản
             "material_primary": ai_result.get("material_detected")
         }
         

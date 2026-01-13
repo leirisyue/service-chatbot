@@ -14,7 +14,7 @@ python embed_test_with_logging.py --table MD_Material_SAP --limit 100
 python embed_test_with_logging_and_db.py --table MD_Material_SAP_T --limit 1000
 python embed_test_with_logging_and_db_config.py --table materials_qwen --limit 1000
 
-python embed_test_with_logging_and_db_batch.py --table MD_Material_SAP --limit 100
+python embed_test_with_logging_and_db_batch.py --table MD_Material_SAP --limit 10
 
 
 psql -U postgres -d db_vector -f pgvector.sql   
