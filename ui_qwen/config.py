@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     QWEN_MODEL: str = "qwen3-embedding:latest"
     QWEN_EMBED_MODEL: str = "qwen3-embedding:latest"
     OLLAMA_HOST: str = "http://192.168.4.102:11434"
+    
+    # Similarity threshold settings
+    SIMILARITY_THRESHOLD_LOW: float = 0.3  # For broad matching (product search, textfunc)
+    SIMILARITY_THRESHOLD_MEDIUM: float = 0.35  # For ranking
+    SIMILARITY_THRESHOLD_HIGH: float = 0.7  # For feedback matching
+    SIMILARITY_THRESHOLD_VERY_HIGH: float = 0.85  # For strict matching
 
     class Config:
         env_file = ".env"

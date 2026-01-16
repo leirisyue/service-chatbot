@@ -293,7 +293,227 @@ def get_adaptive_threshold(query: str) -> float:
     elif len(words) >= 5:
         return 0.82
     else:
-        return 0.90  
+        return 0.90
+
+def _execute_single_search(cur, params: Dict) -> List[Dict]:
+    """Helper function to execute a single product search
+    
+    Args:
+        cur: Database cursor
+        params: Search parameters with keywords_vector, category, material_primary
+    
+    Returns:
+        List of products with similarity scores
+    """
+    
+    keywords = params.get("keywords_vector", "").strip()
+    if not keywords:
+        return []
+    
+    print(f"  Executing search for: {keywords}")
+    
+    # 1. Clean and extract keywords - remove punctuation
+    import re
+    # Remove commas and other punctuation, but keep spaces
+    cleaned_keywords = re.sub(r'[,;.!?]+', ' ', keywords)
+    # Split by spaces and filter out short words
+    original_words = [w.strip().lower() for w in cleaned_keywords.split() if len(w.strip()) > 1]
+
+    # ========== CHECK IF KEYWORDS TOO LONG (>5 words) ==========
+    # If too long, split into smaller chunks and search each
+    if len(original_words) > 5:
+        print(f"  INFO: Keywords too long ({len(original_words)} words), splitting into chunks")
+        
+        # 2. Determine main word (product type)
+        main_product_types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn", "gương", 
+                              "table", "chair", "cabinet", "bed", "shelf", "lamp", "mirror"]
+        
+        main_word = None
+        for word in original_words:
+            if word in main_product_types:
+                main_word = word
+                break
+        
+        if not main_word and original_words:
+            main_word = original_words[0]
+        
+        print(f"  DEBUG: Main word detected: '{main_word}'")
+        
+        # 3. Split remaining words into chunks of 2-3 words
+        # Remove ALL occurrences of main_word to avoid duplicates
+        remaining_words = [w for w in original_words if w != main_word]
+        
+        print(f"  DEBUG: Remaining words after removing main_word: {remaining_words}")
+        
+        # Create chunks: main_word + 2-3 words each
+        chunks = []
+        if main_word:
+            # Split remaining words into groups of 2-3
+            chunk_size = 2
+            for i in range(0, len(remaining_words), chunk_size):
+                chunk_words = remaining_words[i:i+chunk_size]
+                if chunk_words:
+                    chunks.append(f"{main_word} {' '.join(chunk_words)}")
+            
+            # If no remaining words, just search for main word
+            if not chunks:
+                chunks.append(main_word)
+        
+        print(f"  INFO: Split into chunks: {chunks}")
+        
+        # 4. Search with each chunk and merge results
+        all_products = {}
+        for chunk in chunks:
+            chunk_params = params.copy()
+            chunk_params["keywords_vector"] = chunk
+            chunk_results = _execute_single_search_core(cur, chunk_params)
+            
+            # Merge results, keeping highest score for each product
+            for product in chunk_results:
+                headcode = product.get('headcode')
+                if headcode not in all_products or product.get('final_score', 0) > all_products[headcode].get('final_score', 0):
+                    all_products[headcode] = product
+        
+        # Sort by final_score
+        merged_results = sorted(all_products.values(), key=lambda x: x.get('final_score', 0), reverse=True)
+        print(f"  SUCCESS: Merged {len(merged_results)} unique products from {len(chunks)} chunks")
+        return merged_results[:10]
+    
+    # If keywords not too long, use original logic
+    return _execute_single_search_core(cur, params)
+
+def _execute_single_search_core(cur, params: Dict) -> List[Dict]:
+    """Core search logic for single keyword search
+    
+    Args:
+        cur: Database cursor
+        params: Search parameters with keywords_vector, category, material_primary
+    
+    Returns:
+        List of products with similarity scores
+    """
+    keywords = params.get("keywords_vector", "").strip()
+    if not keywords:
+        return []
+    
+    # 1. Clean and extract keywords - remove punctuation
+    import re
+    # Remove commas and other punctuation, but keep spaces
+    cleaned_keywords = re.sub(r'[,;.!?]+', ' ', keywords)
+    # Split by spaces and filter out short words
+    original_words = [w.strip().lower() for w in cleaned_keywords.split() if len(w.strip()) > 1]
+    
+    # 2. Determine main word (product type)
+    main_product_types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn", "gương", 
+                          "table", "chair", "cabinet", "bed", "shelf", "lamp", "mirror"]
+    
+    main_word = None
+    secondary_words = []
+    
+    for word in original_words:
+        if word in main_product_types:
+            main_word = word
+            break
+    
+    if not main_word and original_words:
+        main_word = original_words[0]
+    
+    secondary_words = [w for w in original_words if w != main_word]
+    
+    if not main_word:
+        return []
+    if not main_word:
+        return []
+    
+    # print(f"INFO: Main word for search: {main_word}")   
+    # 3. Query database with main word
+    sql_step1 = """
+        SELECT headcode, product_name, category, sub_category, 
+               material_primary, project, project_id, description_embedding
+        FROM products_qwen
+        WHERE description_embedding IS NOT NULL
+            AND product_name ILIKE %s
+        LIMIT 100
+    """
+    
+    cur.execute(sql_step1, [f"%{main_word}%"])
+    candidates = cur.fetchall()
+    
+    if not candidates:
+        return []
+    
+    # 4. Generate vector for secondary words
+    if secondary_words:
+        secondary_query = " ".join(secondary_words)
+        secondary_vector = generate_embedding_qwen(secondary_query)
+    else:
+        secondary_vector = generate_embedding_qwen(keywords)
+    
+    if not secondary_vector:
+        return []
+    
+    # 5. Calculate similarity scores
+    SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD_LOW
+    MIN_SECONDARY_MATCH_RATIO = 0.5
+    
+    scored_products = []
+    for candidate in candidates:
+        product_name = candidate["product_name"].lower()
+        
+        # Calculate vector similarity
+        if candidate["description_embedding"] and secondary_vector:
+            candidate_emb = candidate["description_embedding"]
+            if isinstance(candidate_emb, str):
+                candidate_emb = json.loads(candidate_emb)
+            
+            candidate_np = np.array(candidate_emb)
+            query_np = np.array(secondary_vector)
+            
+            dot_product = np.dot(candidate_np, query_np)
+            norm_a = np.linalg.norm(candidate_np)
+            norm_b = np.linalg.norm(query_np)
+            similarity = dot_product / (norm_a * norm_b) if (norm_a * norm_b) > 0 else 0
+            similarity = float(similarity)
+        else:
+            similarity = 0.0
+        
+        # Count exact secondary word matches
+        secondary_match_count = sum(1 for word in secondary_words if word in product_name)
+        secondary_match_ratio = secondary_match_count / len(secondary_words) if secondary_words else 1.0
+        
+        # Calculate final score
+        final_score = (secondary_match_ratio * 0.6) + (similarity * 0.4)
+        
+        scored_products.append({
+            "headcode": candidate["headcode"],
+            "product_name": candidate["product_name"],
+            "category": candidate.get("category"),
+            "sub_category": candidate.get("sub_category"),
+            "material_primary": candidate.get("material_primary"),
+            "project": candidate.get("project"),
+            "project_id": candidate.get("project_id"),
+            "similarity": round(similarity, 3),
+            "secondary_match_count": secondary_match_count,
+            "secondary_match_ratio": round(secondary_match_ratio, 2),
+            "final_score": round(final_score, 3)
+        })
+    
+    # 6. Filter by similarity threshold
+    filtered_products = []
+    for p in scored_products:
+        if p["similarity"] < SIMILARITY_THRESHOLD:
+            continue
+        
+        if secondary_words:
+            if p["secondary_match_ratio"] >= MIN_SECONDARY_MATCH_RATIO or p["similarity"] >= 0.6:
+                filtered_products.append(p)
+        else:
+            filtered_products.append(p)
+    
+    # 7. Sort by final_score
+    filtered_products.sort(key=lambda x: x["final_score"], reverse=True)
+    
+    return filtered_products[:10]  # Return top 10
 
 def format_search_results(results):
     """Format results thành cấu trúc chuẩn"""
@@ -390,7 +610,15 @@ def calculate_product_total_cost(headcode: str) -> float:
     return total_cost
 
 def search_products_hybrid(params: Dict):
-    """HYBRID: Vector + Keyword với từ CHÍNH bắt buộc khớp, từ PHỤ tìm gần giống"""
+    """HYBRID: Vector + Keyword với từ CHÍNH bắt buộc khớp, từ PHỤ tìm gần giống
+    
+    Supports parallel search when both main_keywords and secondary_keywords are provided.
+    Returns: {
+        "products": [...],  # From main_keywords
+        "products_second": [...],  # From secondary_keywords (if provided)
+        "search_method": "..."
+    }
+    """
     import signal
     
     def timeout_handler(signum, frame):
@@ -404,6 +632,86 @@ def search_products_hybrid(params: Dict):
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
+    # Check if this is a parallel search request
+    has_dual_keywords = params.get("main_keywords") and params.get("secondary_keywords")
+    
+    if has_dual_keywords:
+        print(f"\nINFO: Parallel search mode - Main: {params.get('main_keywords')}")
+        print(f"\nINFO: Parallel search mode - Secondary: {params.get('secondary_keywords')}")
+        
+        # Execute two searches in parallel and merge results
+        try:
+            # Search with main_keywords
+            params_main = {
+                "keywords_vector": params.get("main_keywords"),
+                "category": params.get("category"),
+                "material_primary": params.get("material_primary")
+            }
+            print(f"INFO: Executing main search with params: {params_main}")
+            products_main = _execute_single_search(cur, params_main)
+            print(f"INFO: Parallel search results - Main: {products_main}")
+            
+            # Search with secondary_keywords
+            params_secondary = {
+                "keywords_vector": params.get("secondary_keywords"),
+                "category": params.get("secondary_category", ""),
+                "material_primary": params.get("secondary_material", "")
+            }
+            print(f"INFO: Executing secondary search with params: {params_secondary}")
+            products_secondary_raw = _execute_single_search(cur, params_secondary)
+            
+            print(f"INFO: Parallel search results - Secondary: {products_secondary_raw}")
+            
+            # Filter duplicates
+            # main_headcodes = set(p.get('headcode') for p in products_main if p.get('headcode'))
+            # products_secondary = [
+            #     p for p in products_secondary_raw 
+            #     if p.get('headcode') not in main_headcodes
+            # ]
+            
+            conn.close()
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
+            
+            print(f"SUCCESS: Parallel search - Main: {len(products_main)}, Secondary: {len(products_secondary_raw)} (after dedup)")
+            
+            return {
+                "products": products_main,
+                "products_second": products_secondary_raw,
+                "search_method": "hybrid_parallel",
+                "expanded_query": f"Main: {params.get('main_keywords')}, Secondary: {params.get('secondary_keywords')}"
+            }
+            
+        except TimeoutError:
+            print(f"⏱️ Search timeout exceeded - returning empty result")
+            try:
+                conn.close()
+            except:
+                pass
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
+            return {
+                "products": [],
+                "products_second": [],
+                "search_method": "timeout",
+                "error": "search_timeout"
+            }
+        except Exception as e:
+            print(f"ERROR: Parallel search error: {e}")
+            try:
+                conn.close()
+            except:
+                pass
+            if hasattr(signal, 'SIGALRM'):
+                signal.alarm(0)
+            return {
+                "products": [],
+                "products_second": [],
+                "search_method": "error",
+                "error": str(e)
+            }
+    
+    # Original single search logic
     # 1. Prepare query
     if params.get("keywords_vector"):
         base = params["keywords_vector"]
@@ -467,8 +775,15 @@ def search_products_hybrid(params: Dict):
     # 3. Extract keywords
     keywords = extract_product_keywords(expanded)
     
-    # 4. Split words in original query
-    original_words = [w.strip().lower() for w in base.split() if len(w.strip()) > 1]
+    # 4. Clean and split words in original query - remove punctuation
+    import re
+    # Remove commas and other punctuation, but keep spaces
+    cleaned_base = re.sub(r'[,;.!?]+', ' ', base)
+    original_words = [w.strip().lower() for w in cleaned_base.split() if len(w.strip()) > 1]
+    
+    print(f"🔍 Keywords extracted: {keywords}")
+    print(f"🔍 Cleaned base query: '{cleaned_base}'")
+    print(f"🔍 Original words: {original_words}")
     
     # 5. XÁC ĐỊNH TỪ CHÍNH (loại sản phẩm) - PHẢI KHỚP CHÍNH XÁC
     main_product_types = ["bàn", "ghế", "tủ", "giường", "sofa", "kệ", "đèn", "gương", "table", "chair", "cabinet", "bed", "shelf", "lamp", "mirror"]
@@ -485,7 +800,7 @@ def search_products_hybrid(params: Dict):
     if not main_word and original_words:
         main_word = original_words[0]
     
-    # Remaining words are secondary words
+    # Remaining words are secondary words - remove ALL occurrences of main_word
     secondary_words = [w for w in original_words if w != main_word]
     
     print(f"🔍 Main word (REQUIRED): '{main_word}' | Secondary: {secondary_words}")
@@ -497,6 +812,9 @@ def search_products_hybrid(params: Dict):
         if hasattr(signal, 'SIGALRM'):
             signal.alarm(0)
         return {"products": [], "search_method": "failed", "error": "no_vector"}
+    
+    print(f"\nINFO: Generated vector for expanded params", params)
+    print("\n")
     
     # 7. STEP 1: Search DATABASE with MAIN WORD (keyword search)
     try:
@@ -512,7 +830,7 @@ def search_products_hybrid(params: Dict):
         
         sql_step1 = """
             SELECT headcode, product_name, category, sub_category, 
-                   material_primary, project, project_id, description_embedding
+                    material_primary, project, project_id, description_embedding
             FROM products_qwen
             WHERE description_embedding IS NOT NULL
                 AND product_name ILIKE %s
@@ -574,7 +892,7 @@ def search_products_hybrid(params: Dict):
         
         # STEP 2: Calculate vector similarity for SECONDARY words
         # Increase threshold to filter out irrelevant products
-        SIMILARITY_THRESHOLD = 0.60
+        SIMILARITY_THRESHOLD = settings.SIMILARITY_THRESHOLD_LOW
         MIN_SECONDARY_MATCH_RATIO = 0.5  # Minimum 50% secondary words must match
         
         # Create vector for SECONDARY query (excluding main word)

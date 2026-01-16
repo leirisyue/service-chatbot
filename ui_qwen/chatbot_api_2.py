@@ -14,6 +14,7 @@ import os
 import re
 import pandas as pd
 import io
+from config import settings
 from .textfunc import (format_search_results)
 
 # ========================================
@@ -894,7 +895,7 @@ def save_user_feedback(session_id: str, query: str, selected_items: list,
 # THAY THẾ hàm get_feedback_boost_for_query (dòng ~900)
 # ========================================
 
-def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = 0.7) -> Dict:
+def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = None) -> Dict:
     """
     📊 V5.0 - Vector-based feedback matching
     Tìm feedback từ các query TƯƠNG TỰ (không cần trùng 100%)
@@ -902,11 +903,15 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
     Args:
         query: Câu hỏi hiện tại
         search_type: "product" hoặc "material"
-        similarity_threshold: Ngưỡng độ tương tự (0.7 = 70%)
+        similarity_threshold: Ngưỡng độ tương tự (mặc định từ config)
     
     Returns:
         Dict[item_id, feedback_score]
     """
+    from config import settings
+    if similarity_threshold is None:
+        similarity_threshold = settings.SIMILARITY_THRESHOLD_HIGH
+    
     try:
         # 1. Tạo embedding cho query hiện tại
         query_vector = generate_embedding(query)
@@ -1072,7 +1077,7 @@ def apply_feedback_to_search(items: list, query: str, search_type: str,
     feedback_scores = get_feedback_boost_for_query(
         query, 
         search_type,
-        similarity_threshold=0.85
+        similarity_threshold=settings.SIMILARITY_THRESHOLD_VERY_HIGH
     )
     
     if not feedback_scores:
@@ -1250,7 +1255,7 @@ def search_products(params: Dict, session_id: str = None):
             feedback_dict = get_feedback_boost_for_query(
                 params.get("keywords_vector", ""),
                 search_type="product",
-                similarity_threshold=0.85
+                similarity_threshold=settings.SIMILARITY_THRESHOLD_VERY_HIGH
             )
             
             max_feedback = max(feedback_dict.values()) if feedback_dict else 1.0

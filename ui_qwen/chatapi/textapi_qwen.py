@@ -501,28 +501,40 @@ def search_products(params: Dict, session_id: str = None, disable_fallback: bool
     """Multi-tier: HYBRID -> Vector -> Keyword
     
     Args:
-        params: Search parameters
+        params: Search parameters (can include main_keywords and secondary_keywords for parallel search)
         session_id: Session ID for personalization
         disable_fallback: If True, won't perform automatic second search (for image search flow)
     """
-    print(f"params: search_products +search_products_hybrid {params}")
+    print(f"params: search_products + search_products_hybrid {params}")
+    
+    # Check if this is a parallel search request (has both main_keywords and secondary_keywords)
+    has_dual_keywords = params.get("main_keywords") and params.get("secondary_keywords")
+    
     # TIER 1: Try Hybrid first
     try:
         result = search_products_hybrid(params)
-        
+        print(f"INFO: Hybrid search results - Found {len(result.get('products', []))} products")
+        print(f"INFO: Hybrid search results - Found {len(result.get('products_second', []))} products_second")
         # Check if there's a timeout error or search method indicates no results
         if result.get("search_method") == "timeout":
             print("TIMER: Search timeout - returning empty products list")
             return {
                 "products": [],
+                "products_second": [] if has_dual_keywords else None,
                 "search_method": "timeout",
                 "response": "No matching products found",
                 "success": False
             }
         
-        if result.get("products"):
+        if result.get("products") or result.get("products_second"):
             # Update total_cost for products in hybrid search
-            for product in result["products"]:
+            products = result.get("products", [])
+            products_second = result.get("products_second", [])
+            
+            for product in products:
+                product["total_cost"] = calculate_product_total_cost(product["headcode"])
+            
+            for product in products_second:
                 product["total_cost"] = calculate_product_total_cost(product["headcode"])
                 
             products = result["products"]
@@ -581,93 +593,112 @@ def search_products(params: Dict, session_id: str = None, disable_fallback: bool
                     product['query_boost'] = boost
                     print(f"  INFO: Boosted {product['headcode']}: +{boost:.3f} (matches: {match_count})")
             
-            # ========== STEP 2: PERSONALIZATION ==========
-            # ✅ Only apply if session_id exists AND user has history
-            has_personalization = False
+            # # ========== STEP 2: PERSONALIZATION ==========
+            # # ✅ Only apply if session_id exists AND user has history
+            # has_personalization = False
             
-            if session_id:
-                print(f"\nINFO: Personalization for {session_id[:8]}...")
+            # if session_id:
+            #     print(f"\nINFO: Personalization for {session_id[:8]}...")
                 
-            if not has_personalization:
-                for product in products:
-                    product['personal_score'] = 0.5
+            # if not has_personalization:
+            #     for product in products:
+            #         product['personal_score'] = 0.5
             
-            print(f"INFO: Personalization done\n")
+            # print(f"INFO: Personalization done\n")
             
-            # ========== STEP 3: FEEDBACK SCORES ==========
-            print(f"MAIN: Feedback Scoring...")
+            # # ========== STEP 3: FEEDBACK SCORES ==========
+            # print(f"MAIN: Feedback Scoring...")
             
-            feedback_dict = get_feedback_boost_for_query(
-                params.get("keywords_vector", ""),
-                search_type="product",
-                similarity_threshold=0.85
-            )
+            # feedback_dict = get_feedback_boost_for_query(
+            #     params.get("keywords_vector", ""),
+            #     search_type="product",
+            #     similarity_threshold=settings.SIMILARITY_THRESHOLD_LOW
+            # )
             
-            max_feedback = max(feedback_dict.values()) if feedback_dict else 1.0
+            # max_feedback = max(feedback_dict.values()) if feedback_dict else 1.0
             
-            for product in products:
-                headcode = product.get('headcode')
-                raw_feedback = feedback_dict.get(headcode, 0)
+            # for product in products:
+            #     headcode = product.get('headcode')
+            #     raw_feedback = feedback_dict.get(headcode, 0)
                 
-                product['feedback_score'] = float(raw_feedback / max_feedback) if max_feedback > 0 else 0.0
-                product['feedback_count'] = float(raw_feedback)
+            #     product['feedback_score'] = float(raw_feedback / max_feedback) if max_feedback > 0 else 0.0
+            #     product['feedback_count'] = float(raw_feedback)
             
-            print(f"SUCCESS: Feedback Scoring done\n")
+            # print(f"SUCCESS: Feedback Scoring done\n")
             
-            # ========== STEP 4: WEIGHTED SUM ==========
+            # # ========== STEP 4: WEIGHTED SUM ==========
             
-            # ✅ ADAPTIVE WEIGHTS
-            if has_personalization:
-                # User has history → prioritize personalization
-                W_BASE = 0.3
-                W_PERSONAL = 0.5
-                W_FEEDBACK = 0.2
-            else:
-                # New user → prioritize base + social proof
-                W_BASE = 0.6
-                W_PERSONAL = 0.0  
-                W_FEEDBACK = 0.4
+            # # ✅ ADAPTIVE WEIGHTS
+            # if has_personalization:
+            #     # User has history → prioritize personalization
+            #     W_BASE = 0.3
+            #     W_PERSONAL = 0.5
+            #     W_FEEDBACK = 0.2
+            # else:
+            #     # New user → prioritize base + social proof
+            #     W_BASE = 0.6
+            #     W_PERSONAL = 0.0  
+            #     W_FEEDBACK = 0.4
             
-            for idx, product in enumerate(products):
-                base = product.get('base_score', 0.5)
-                personal = product.get('personal_score', 0.5)
-                feedback = product.get('feedback_score', 0.0)
+            # for idx, product in enumerate(products):
+            #     base = product.get('base_score', 0.5)
+            #     personal = product.get('personal_score', 0.5)
+            #     feedback = product.get('feedback_score', 0.0)
                 
-                # ✅ Only calculate personal if has_personalization
-                if has_personalization:
-                    final_score = (W_BASE * base) + (W_PERSONAL * personal) + (W_FEEDBACK * feedback)
-                else:
-                    final_score = (W_BASE * base) + (W_FEEDBACK * feedback)
+            #     # ✅ Only calculate personal if has_personalization
+            #     if has_personalization:
+            #         final_score = (W_BASE * base) + (W_PERSONAL * personal) + (W_FEEDBACK * feedback)
+            #     else:
+            #         final_score = (W_BASE * base) + (W_FEEDBACK * feedback)
                 
-                product['final_score'] = float(final_score)
-                product['original_rank'] = idx + 1
+            #     product['final_score'] = float(final_score)
+            #     product['original_rank'] = idx + 1
             
-            # ========== STEP 5: SORT FINAL ==========
-            products.sort(key=lambda x: x.get('final_score', 0), reverse=True)
+            # # ========== STEP 5: SORT FINAL ==========
+            # products.sort(key=lambda x: x.get('final_score', 0), reverse=True)
             
-            for idx, product in enumerate(products):
-                product['final_rank'] = idx + 1
+            # for idx, product in enumerate(products):
+            #     product['final_rank'] = idx + 1
                 
-                if product.get('feedback_count', 0) > 0:
-                    product['has_feedback'] = True
+            #     if product.get('feedback_count', 0) > 0:
+            #         product['has_feedback'] = True
             
-            print(f"INFO: Final Ranking complete\n")
+            # print(f"INFO: Final Ranking complete\n")
             
-            # Classify products by base_score
+            # # ========== RETURN EARLY IF DISABLE_FALLBACK OR DUAL KEYWORDS ==========
+            # # When disable_fallback=True (e.g., for image search with dual keywords),
+            # # return all products without automatic broader search
+            # if disable_fallback or has_dual_keywords:
+            #     if has_dual_keywords:
+            #         print(f"INFO: Dual keywords mode - Products: {len(products)}, Products second: {len(products_second)}")
+            #         result["products"] = products  # Return products from main_keywords
+            #         result["products_second"] = products_second  # Return products from secondary_keywords
+            #     else:
+            #         print(f"INFO: Fallback disabled - returning {len(products)} products as-is")
+            #         result["products"] = products  # Return ALL products, caller will filter
+                
+            #     result["ranking_summary"] = get_ranking_summary(products)
+            #     result["can_provide_feedback"] = True
+            #     result["search_method"] = result.get("search_method", "hybrid")
+            #     return result
+            
+            # Classify products by base_score (only for non-dual keyword searches)
             products_main = [p for p in products if p.get('base_score', 0) >= 0.6]
             products_low_confidence = [p for p in products if p.get('base_score', 0) < 0.6]
             
             print(f"INFO: Main products: {len(products_main)}, Low confidence: {len(products_low_confidence)}")
+            result["search_method"] = result.get("search_method", "hybrid")
+            return result
             
-            # Only do automatic fallback if not disabled (e.g., for image search)
+            # Only do automatic fallback if not disabled (e.g., for text search flow)
             products_main_second = []
-            if not products_main and not disable_fallback:
+            if True:
                 print(f"INFO: First search returned no high-confidence results, trying broader search")
                 
                 # Generate broader search params
                 broader_params = _generate_broader_search_params(params)
                 
-                if broader_params:
+                if True:
                     print(f"INFO: Broader search params: {broader_params}")
                     
                     try:
@@ -710,7 +741,7 @@ def search_products(params: Dict, session_id: str = None, disable_fallback: bool
                             feedback_dict_second = get_feedback_boost_for_query(
                                 broader_params.get("keywords_vector", ""),
                                 search_type="product",
-                                similarity_threshold=0.85
+                                similarity_threshold=settings.SIMILARITY_THRESHOLD_VERY_HIGH
                             )
                             
                             max_feedback_second = max(feedback_dict_second.values()) if feedback_dict_second else 1.0

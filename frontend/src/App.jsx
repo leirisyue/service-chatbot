@@ -104,22 +104,21 @@ function App() {
   };
 
   const handleImageSearch = async (file) => {
-    setIsLoading(true);
 
-    // Tạo preview URL từ file
     const imageUrl = URL.createObjectURL(file);
+
+    const userMessage = {
+      role: 'user',
+      content: "📷 Tìm kiếm bằng hình ảnh",
+      imageUrl: imageUrl,
+      timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    setIsLoading(true);
 
     try {
       const response = await searchByImage(file);
-
-      // Thêm user message với ảnh
-      const userMessage = {
-        role: 'user',
-        content: "📷 Tìm kiếm bằng hình ảnh",
-        imageUrl: imageUrl,
-        timestamp: Date.now()
-      };
-      setMessages(prev => [...prev, userMessage]);
 
       // Thêm bot message
       const botMessage = {

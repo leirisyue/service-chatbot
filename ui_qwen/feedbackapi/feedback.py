@@ -17,7 +17,7 @@ router = APIRouter()
 # FUNCTION DEFINITIONS
 # ================================================================================================
 
-def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = 0.7) -> Dict:
+def get_feedback_boost_for_query(query: str, search_type: str, similarity_threshold: float = None) -> Dict:
     """
     V5.0 - Vector-based feedback matching
     Find feedback from SIMILAR queries (doesn't need to match 100%)
@@ -25,11 +25,15 @@ def get_feedback_boost_for_query(query: str, search_type: str, similarity_thresh
     Args:
         query: Current question
         search_type: "product" or "material"
-        similarity_threshold: Similarity threshold (0.6 = 60%)
+        similarity_threshold: Similarity threshold (default from config)
     
     Returns:
         Dict[item_id, feedback_score]
     """
+    from config import settings
+    if similarity_threshold is None:
+        similarity_threshold = settings.SIMILARITY_THRESHOLD_HIGH
+    
     try:
         # 1. Generate embedding for current query
         query_vector = generate_embedding_qwen(query)

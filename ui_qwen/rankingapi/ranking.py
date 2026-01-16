@@ -83,7 +83,7 @@ def apply_feedback_to_search(items: list, query: str, search_type: str,
     feedback_scores = get_feedback_boost_for_query(
         query, 
         search_type,
-        similarity_threshold=0.85
+        similarity_threshold=settings.SIMILARITY_THRESHOLD_MEDIUM
     )
     
     if not feedback_scores:
