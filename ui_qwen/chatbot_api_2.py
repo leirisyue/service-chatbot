@@ -3266,7 +3266,7 @@ async def search_by_image(
 
         if not products:
             return {
-                "response": f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm nội thất')}**.\n\n"
+                "response": f"📋 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm nội thất')}**.\n\n"
                                 f"Tuy nhiên, không tìm thấy sản phẩm tương tự trong kho dữ liệu.\n\n"
                         f"💡 **Gợi ý**: Bạn có thể mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác. Tôi sẽ gợi ý cho bạn danh sách sản phẩm",
                 "products": [],
@@ -3274,7 +3274,7 @@ async def search_by_image(
             }
         
         return {
-            "response": f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm')}**.\n\n"
+            "response": f"📋 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result.get('visual_description', 'sản phẩm')}**.\n\n"
                        f"✅ Đã tìm thấy **{len(products)} sản phẩm** tương đồng:",
             "products": products,
             "ai_interpretation": ai_result.get("visual_description", ""),

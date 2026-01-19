@@ -4,7 +4,7 @@ import ImageUpload from './ImageUpload';
 import SendIcon from '@mui/icons-material/Send';
 import Button from '@mui/material/Button';
 
-function ChatInput({ onSendMessage, onImageUpload, disabled, lastMessage }) {
+function ChatInput({ onSendMessage, onImageUpload, onImageWithTextUpload, disabled, lastMessage }) {
   const [inputValue, setInputValue] = useState('');
   const [selectedImage, setSelectedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -16,6 +16,17 @@ function ChatInput({ onSendMessage, onImageUpload, disabled, lastMessage }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Trường hợp có cả ảnh và text
+    if (selectedImage && inputValue.trim() && !disabled) {
+      onImageWithTextUpload(selectedImage, inputValue.trim());
+      setSelectedImage(null);
+      setImagePreview(null);
+      setInputValue('');
+      return;
+    }
+    
+    // Trường hợp chỉ có ảnh
     if (selectedImage && !disabled) {
       onImageUpload(selectedImage);
       setSelectedImage(null);
@@ -94,7 +105,7 @@ function ChatInput({ onSendMessage, onImageUpload, disabled, lastMessage }) {
               ✕
             </button>
           </div>
-          <div className="image-preview-hint">📷 Nhấn "Gửi" để tìm kiếm sản phẩm tương tự</div>
+          <div className="image-preview-hint">📷 Bạn có thể thêm mô tả hoặc nhấn "Gửi" để tìm kiếm</div>
         </div>
       )}
 
@@ -106,7 +117,7 @@ function ChatInput({ onSendMessage, onImageUpload, disabled, lastMessage }) {
           onChange={(e) => setInputValue(e.target.value)}
           onKeyPress={handleKeyPress}
           placeholder="Nhập câu hỏi của bạn... (VD: Tìm bàn tròn gỗ sồi, hoặc Tìm gỗ làm bàn...)"
-          disabled={disabled || selectedImage}
+          disabled={disabled}
           className="chat-input"
         />
         <Button

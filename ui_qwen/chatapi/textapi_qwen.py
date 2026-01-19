@@ -683,7 +683,7 @@ def search_products(params: Dict, session_id: str = None, disable_fallback: bool
             #     return result
             
             # Classify products by base_score (only for non-dual keyword searches)
-            products_main = [p for p in products if p.get('base_score', 0) >= 0.6]
+            products_main = [p for p in products if p.get('final_score', 0) >= 0.75]
             products_low_confidence = [p for p in products if p.get('base_score', 0) < 0.6]
             
             print(f"INFO: Main products: {len(products_main)}, Low confidence: {len(products_low_confidence)}")
@@ -1805,10 +1805,6 @@ def chat(msg: ChatMessage):
             result_response = {
                 "response": "👋 Xin chào! Tôi là trợ lý AI của AA Corporation.\n\n"
                         "Tôi có thể giúp bạn:\n"
-                        #    "• 🔍 **Tìm sản phẩm** (bàn, ghế, sofa...)\n"
-                        #    "• 🧱 **Tìm nguyên vật liệu** (gỗ, da, đá, vải...)\n"
-                        #    "• 💰 **Tính chi phí** sản phẩm\n"
-                        #    "• 📋 **Xem định mức** nguyên vật liệu\n\n"
                         f"{suggested_prompts_mess}"
                         "Bạn cần tìm gì hôm nay?",
                 "suggested_prompts": suggested_prompts
@@ -1816,11 +1812,8 @@ def chat(msg: ChatMessage):
         
         elif intent == "search_product":
             search_result = search_products(params, session_id=msg.session_id)
-            print(f"DEBUG: search_result: {search_result}")
             products = search_result.get("products", [])
-            
-            # ✅ search_products đã xử lý HẾT ranking rồi, không cần gọi gì thêm
-            
+
             ranking_summary = search_result.get("ranking_summary", {})
             result_count = len(products)
             
@@ -1904,12 +1897,7 @@ def chat(msg: ChatMessage):
                             prod_item.get("sub_category", ""),
                             prod_item.get("material_primary", ""),
                         ])
-                    # response_text += (
-                    #     "\n📦 **DANH SÁCH SẢN PHẨM ĐỀ XUẤT**\n" +
-                    #     build_markdown_table(headers, rows) +
-                    #     "\n"
-                    # )
-                    
+
                     suggested_prompts = [
                         f"💰 Phân tích chi phí {products[0]['headcode']}",
                         f"🧱 Xem cấu tạo vật liệu {products[0]['headcode']}",

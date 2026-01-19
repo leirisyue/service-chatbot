@@ -71,6 +71,17 @@
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+.message-text-with-image {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: white;
+  font-weight: 500;
+}
+
 .fade-in {
   animation: fadeInUp 0.4s ease forwards;
 }

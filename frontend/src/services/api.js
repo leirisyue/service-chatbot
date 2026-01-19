@@ -44,6 +44,20 @@ export const searchByImage = async (file) => {
   return response.data;
 };
 
+export const searchImageWithText = async (file, text, sessionId) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('description', text);
+  formData.append('session_id', sessionId);
+
+  const response = await api.post('/search-image-with-text', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
 // Tracking endpoints
 export const trackView = async (sessionId, productHeadcode) => {
   try {

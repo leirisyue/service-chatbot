@@ -206,8 +206,7 @@ async def search_by_image(
             VÍ DỤ MẪU (ONE-SHOT EXAMPLE)
             Input: [Hình ảnh một chiếc ghế văn phòng lưới đen chân xoay] Output: [ { "category": "Ghế", "visual_description": "Ghế xoay văn phòng lưng trung, thiết kế khung nhựa đúc nguyên khối kết hợp lưng lưới thoáng khí. Tay vịn nhựa cố định dạng vòm. Đệm ngồi bọc vải lưới xốp êm ái. Chân ghế sao 5 cánh bằng thép mạ chrome sáng bóng, có bánh xe di chuyển và cần gạt điều chỉnh độ cao.", "search_keywords": "ghế xoay lưới", "material_detected": "Lưới, Nhựa PP, Thép mạ chrome, Vải, Mút", "color_tone": "Đen, Bạc" }, { "category": "Ghế", "visual_description": "Ghế xoay văn phòng lưng trung, thiết kế khung nhựa đúc nguyên khối kết hợp lưng lưới thoáng khí. Tay vịn nhựa cố định dạng vòm. Đệm ngồi bọc vải lưới xốp êm ái. Chân ghế sao 5 cánh bằng thép mạ chrome sáng bóng, có bánh xe di chuyển và cần gạt điều chỉnh độ cao.", "search_keywords": "ghế văn phòng", "material_detected": "Lưới, Nhựa PP, Thép mạ chrome, Vải, Mút", "color_tone": "Đen, Bạc" } ]
 
-            BẮT ĐẦU PHÂN TÍCH HÌNH ẢNH NÀY:
-            [AI sẽ chờ bạn upload ảnh tại đây]
+            BẮT ĐẦU PHÂN TÍCH HÌNH ẢNH NÀY
         """
         
         response = model.generate_content([prompt, img])
@@ -338,9 +337,9 @@ async def search_by_image(
         print(f"\nINFO: Image search completed. Total Products: found: {products:}\n")
         print(f"\nINFO: Image search completed. Total Products second: found: {products_second:}\n")
         # Classify products by base_score
-        products_main = [p for p in products if p.get('final_score', 0) >= 0.8]
+        products_main = [p for p in products if p.get('final_score', 0) >= 0.75]
         products_low_confidence = [p for p in products if p.get('similarity', 0) < 0.6]
-        products_second_main = [p for p in products_second if p.get('similarity', 0) >= 0.6] if products_second else []
+        products_second_main = [p for p in products_second if p.get('similarity', 0) >= 0.6 and p.get('final_score', 0) < 0.75] if products_second else []
         
         print(f"INFO: Image search - Main products: {len(products_main)}, Products second: {len(products_second_main)}, Low confidence: {len(products_low_confidence)}")
         
@@ -353,19 +352,18 @@ async def search_by_image(
         
         # Build response message based on results
         if products_main or products_second_main:
-            response_msg = f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result[0].get('visual_description', 'sản phẩm')}**.\n\n"
+            response_msg = f"📋 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result[0].get('visual_description', 'sản phẩm')}**.\n\n"
             if products_main:
                 response_msg += f"✅ Dựa trên hình ảnh bạn đã tải lên, tôi có **{len(products_main)} sản phẩm theo yêu cầu của bạn** gợi ý cho bạn"
-            else:
-                response_msg += f"⚠️ Thật xin lỗi tôi không tìm thấy sản phẩm phù hợp với yêu cầu của bạn trong cơ sở dữ liệu.\n"
-            if products_second_main:
-                response_msg += f"{', và ' if products_main else '✅ Tôi có '}**{len(products_second_main)} sản phẩm tương tự** với yêu cầu trên của bạn! Bạn có thể tham khảo"
+            # if products_second_main:
+            #     response_msg += f"{', và ' if products_main else '✅ Tôi có '}**{len(products_second_main)} sản phẩm tương tự** với yêu cầu trên của bạn! Bạn có thể tham khảo"
             response_msg += ":"
         else:
-            response_msg = f"📸 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result[0].get('visual_description', 'sản phẩm nội thất')}**.\n\n" \
+            response_msg += f"⚠️ Thật xin lỗi tôi không tìm thấy sản phẩm phù hợp với yêu cầu của bạn trong cơ sở dữ liệu.\n"
+            response_msg = f"📋 **Phân tích ảnh:** Tôi nhận thấy đây là **{ai_result[0].get('visual_description', 'sản phẩm nội thất')}**.\n\n" \
                             f"⚠️ Tuy nhiên, rất tiếc tôi không tìm thấy sản phẩm phù hợp với yêu cầu của bạn.\n\n" \
                             f"💡 **Gợi ý**: Bạn có thể mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác. Tôi sẽ gợi ý cho bạn danh sách sản phẩm"
-        
+
         return {
             "response": response_msg,
             "products": products_main if products_main else None,
@@ -378,7 +376,8 @@ async def search_by_image(
                 "products_second_count": len(products_second_main),
                 "low_confidence": len(products_low_confidence)
             },
-            "suggested_prompts_mess": "Những sản phẩm gợi ý trên có phù hợp với nhu cầu của bạn không? Bạn có thể mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác. Tôi sẽ gợi ý cho bạn danh sách sản phẩm phù hợp hơn."
+            "success": True,
+            "suggested_prompts_mess": "Những sản phẩm gợi ý trên có phù hợp với nhu cầu của bạn không? \n\nBạn có thể mô tả chi tiết hơn. Hoặc bạn có thể tìm sản phẩm khác. Tôi sẽ gợi ý cho bạn danh sách sản phẩm phù hợp hơn."
         }
     
     except Exception as e:
@@ -388,7 +387,8 @@ async def search_by_image(
         
         return {
             "response": f"⚠️ Lỗi xử lý ảnh: {str(e)}. Vui lòng thử lại.",
-            "products": []
+            "products": [],
+            "success": False,
         }
     
     finally:
@@ -603,3 +603,252 @@ def classify_pending_materials():
             "total": 0,
             "remaining": 0
         }
+
+@router.post("/search-image-with-text", tags=["Classifyapi"])
+async def search_by_image_with_text(
+    file: UploadFile = File(...),
+    description: str = Form(...),
+    session_id: str = Form(default=str(uuid.uuid4()))
+):
+    file_path = f"./media/temp_{uuid.uuid4()}.jpg"
+    try:
+        # Read and save uploaded file
+        contents = await file.read()
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+        
+        # Open image with PIL
+        img = Image.open(file_path)
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        
+        # Enhanced prompt that combines image analysis with user's text description
+        prompt = f"""
+            ROLE
+            You are a Senior Interior Materials Analyst at AA Corporation with expertise in analyzing products based on both visual and textual information.
+
+            TASK
+            Analyze the provided image AND the user's description to extract comprehensive technical information for database search.
+
+            USER'S DESCRIPTION & REQUIREMENTS:
+            {description}
+
+            CHIẾN LƯỢC DỮ LIỆU (DATA STRATEGY)
+            Output phải là một mảng chứa chính xác 2 đối tượng (objects):
+
+            Object 1 (Ưu tiên): Kết hợp thông tin từ hình ảnh VÀ mô tả của user để tạo từ khóa tìm kiếm chính xác nhất.
+            - Ưu tiên các yêu cầu cụ thể từ user (màu sắc, kích thước, chất liệu, phong cách...)
+            - Kết hợp với đặc điểm nổi bật từ hình ảnh
+
+            Object 2 (Dự phòng): Tìm kiếm mở rộng dựa trên danh mục chung.
+
+            HƯỚNG DẪN CÁC TRƯỜNG (FIELDS)
+            category: Danh mục sản phẩm (Ghế, Bàn, Sofa, Tủ, Đèn, Giường, Kệ...)
+
+            visual_description: Mô tả chuyên nghiệp kết hợp:
+            - Những gì nhìn thấy từ hình ảnh
+            - Yêu cầu cụ thể từ mô tả của user
+            - Phong cách, chất liệu, màu sắc, kích thước...
+
+            search_keywords:
+            - Object 1: Từ khóa chi tiết kết hợp yêu cầu user + đặc điểm hình ảnh
+            - Object 2: Từ khóa tổng quát hơn
+
+            material_detected: Vật liệu nhìn thấy từ hình ảnh hoặc được user đề cập
+
+            color_tone: Màu sắc (từ hình ảnh hoặc yêu cầu của user)
+
+            user_requirements: Tóm tắt các yêu cầu đặc biệt của user (kích thước, giá, tính năng...)
+
+            ĐỊNH DẠNG OUTPUT
+            Trả về JSON array: [ {{...}}, {{...}} ]
+            Không dùng markdown, không giải thích thêm.
+            Ngôn ngữ: Tiếng Việt.
+
+            VÍ DỤ:
+            User description: "Tôi cần ghế văn phòng màu xám, có tựa lưng cao, giá dưới 3 triệu"
+            Output: [
+                {{
+                    "category": "Ghế",
+                    "visual_description": "Ghế văn phòng công thái học lưng cao, khung nhựa PP đen kết hợp lưới thoáng khí màu xám. Tay vịn nhựa chữ T điều chỉnh được. Đệm ngồi bọc vải màu xám xốp êm. Chân sao 5 cánh thép mạ có bánh xe, cần nâng hạ khí nén. Thiết kế theo yêu cầu: màu xám, lưng cao, phù hợp văn phòng.",
+                    "search_keywords": "ghế văn phòng lưng cao xám",
+                    "material_detected": "Lưới, Nhựa PP, Thép mạ, Vải",
+                    "color_tone": "Xám, Đen",
+                    "user_requirements": "Màu xám, tựa lưng cao, giá < 3 triệu"
+                }},
+                {{
+                    "category": "Ghế",
+                    "visual_description": "Ghế văn phòng công thái học lưng cao, khung nhựa PP đen kết hợp lưới thoáng khí màu xám. Tay vịn nhựa chữ T điều chỉnh được. Đệm ngồi bọc vải màu xám xốp êm. Chân sao 5 cánh thép mạ có bánh xe, cần nâng hạ khí nén.",
+                    "search_keywords": "ghế văn phòng",
+                    "material_detected": "Lưới, Nhựa PP, Thép mạ, Vải",
+                    "color_tone": "Xám, Đen",
+                    "user_requirements": "Màu xám, tựa lưng cao, giá < 3 triệu"
+                }}
+            ]
+
+            BẮT ĐẦU PHÂN TÍCH HÌNH ẢNH NÀY
+        """
+        
+        # Generate content with both image and prompt
+        response = model.generate_content([prompt, img])
+        
+        if not response.text:
+            return {
+                "response": "⚠️ Không phân tích được ảnh và mô tả. Vui lòng thử lại.",
+                "products": []
+            }
+        
+        # Parse AI response
+        clean = response.text.strip()
+        if "```json" in clean:
+            clean = clean.split("```json")[1].split("```")[0].strip()
+        elif "```" in clean:
+            clean = clean.split("```")[1].split("```")[0].strip()
+        
+        try:
+            ai_result = json.loads(clean)
+        except json.JSONDecodeError as e:
+            print(f"JSON Parse Error: {e}")
+            return {
+                "response": "⚠️ Lỗi phân tích dữ liệu. Vui lòng thử lại.",
+                "products": [],
+                "success": False,
+            }
+        
+        print(f"INFO: AI Image+Text Analysis Result: {ai_result}")
+        
+        # Extract search parameters from AI result
+        search_keywords = ai_result[0].get("search_keywords", "").strip()
+        category = ai_result[0].get("category", "")
+        user_requirements = ai_result[0].get("user_requirements", "")
+        
+        # Prepare search text
+        if not search_keywords or len(search_keywords) > 50:
+            search_text = category
+            print(f"INFO: Using category as search term: {search_text}")
+        else:
+            words = search_keywords.split()[:4]  # Use up to 4 words for better matching
+            search_text = " ".join(words)
+            print(f"INFO: Using keywords: {search_text}")
+        
+        # Get secondary keywords if available
+        secondary_keywords = ""
+        secondary_category = ""
+        if len(ai_result) > 1:
+            secondary_keywords = ai_result[1].get("search_keywords", "").strip()
+            secondary_category = ai_result[1].get("category", "")
+        
+        # Prepare search parameters
+        params = {
+            "category": category,
+            "keywords_vector": search_text,
+            "material_primary": ai_result[0].get("material_detected"),
+            "main_keywords": search_keywords,
+            "secondary_keywords": secondary_keywords,
+            "secondary_category": secondary_category,
+            "user_description": description  # Include original user description
+        }
+        
+        print(f"INFO: Search params - Main: {search_keywords}, Secondary: {secondary_keywords}")
+        print(f"INFO: User requirements: {user_requirements}")
+        
+        # Execute search
+        search_result = search_products(params, session_id=session_id, disable_fallback=True)
+        
+        products = search_result.get("products", []) or []
+        products_second = search_result.get("products_second", []) or []
+        
+        print(f"INFO: Search results - Main: {len(products)}, Secondary: {len(products_second)}")
+        
+        # Validate products against image and text description
+        ai_interpretation = ai_result[0].get("visual_description", "").lower()
+        description_lower = description.lower()
+        
+        for product in products:
+            product_name = (product.get('product_name') or '').lower()
+            category_prod = (product.get('category') or '').lower()
+            
+            # Check match with AI interpretation and user description
+            name_match = any(word in ai_interpretation or word in description_lower 
+                            for word in product_name.split() if len(word) > 2)
+            category_match = category_prod in ai_interpretation or category_prod in description_lower
+            
+            if not name_match and not category_match:
+                current_score = product.get('base_score', 0.6)
+                penalty = 0.2
+                product['base_score'] = max(0, current_score - penalty)
+                product['mismatch'] = True
+                print(f"  ⚠️ Mismatch penalty for {product.get('headcode')}: {current_score:.3f} -> {product['base_score']:.3f}")
+            else:
+                product['mismatch'] = False
+        
+        # Classify products by confidence score
+        products_main = [p for p in products if p.get('final_score', 0) >= 0.75]
+        products_second_main = [p for p in products_second if p.get('similarity', 0) >= 0.6 and p.get('final_score', 0) < 0.75] if products_second else []
+        products_low_confidence = [p for p in products if p.get('similarity', 0) < 0.6]
+        
+        print(f"INFO: Final results - Main: {len(products_main)}, Secondary: {len(products_second_main)}, Low: {len(products_low_confidence)}")
+        
+        # Save to chat history
+        histories.save_chat_to_histories(
+            email="test@gmail.com",
+            session_id=session_id,
+            question=f"[IMAGE+TEXT] {description[:100]}...",
+            answer=f"Phân tích: {ai_result[0].get('visual_description', '')[:100]}... | Tìm thấy {len(products_main)} sản phẩm phù hợp với yêu cầu, {len(products_second_main)} sản phẩm phụ"
+        )
+        
+        # Build response message
+        if products_main or products_second_main:
+            response_msg = f"📋 **Phân tích hình ảnh và yêu cầu của bạn:**\n\n"
+            response_msg += f"🔍 **Mô tả sản phẩm:** {ai_result[0].get('visual_description', 'N/A')}\n\n"
+            if user_requirements:
+                response_msg += f"✨ **Yêu cầu của bạn:** {user_requirements}\n\n"
+            
+            if products_main:
+                response_msg += f"✅ Tôi tìm thấy **{len(products_main)} sản phẩm phù hợp** với yêu cầu của bạn"
+            if products_second_main:
+                response_msg += f"Những sản phẩm trên có phù hợp với yêu cầu của bạn không?. Nếu không hãy để tôi tìm kiếm thêm cho bạn"
+            
+            response_msg += "!"
+        else:
+            response_msg = f"📋 **Phân tích hình ảnh và yêu cầu:**\n\n"
+            response_msg += f"🔍 **Mô tả:** {ai_result[0].get('visual_description', 'N/A')}\n\n"
+            if user_requirements:
+                response_msg += f"✨ **Yêu cầu:** {user_requirements}\n\n"
+            response_msg += f"⚠️ Rất tiếc, tôi chưa tìm thấy sản phẩm hoàn toàn phù hợp với yêu cầu của bạn.\n\n"
+            response_msg += f"💡 **Gợi ý:** Bạn có thể thử mô tả chi tiết hơn hoặc điều chỉnh yêu cầu của bạn."
+        
+        return {
+            "response": response_msg,
+            "products": products_main if products_main else None,
+            "products_second": products_second_main if products_second_main else None,
+            "products_low_confidence": products_low_confidence[:5] if products_low_confidence else [],
+            "ai_interpretation": ai_result[0].get("visual_description", ""),
+            "user_requirements": user_requirements,
+            "search_method": "image_text_combined_search",
+            "confidence_summary": {
+                "products_main_count": len(products_main),
+                "products_second_count": len(products_second_main),
+                "low_confidence_count": len(products_low_confidence)
+            },
+            "success": True,
+            "suggested_prompts_mess": "Sản phẩm có phù hợp không? Bạn có thể mô tả thêm về màu sắc, kích thước, chất liệu hoặc ngân sách để tôi tìm chính xác hơn!"
+        }
+    
+    except Exception as e:
+        print(f"ERROR: Image+Text search error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return {
+            "response": f"⚠️ Lỗi xử lý: {str(e)}. Vui lòng thử lại.",
+            "products": [],
+            "success": False,
+        }
+    
+    finally:
+        # Clean up temporary file
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass

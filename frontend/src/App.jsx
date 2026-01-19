@@ -11,7 +11,7 @@ import SuggestedPrompts from './components/Input/SuggestedPrompts';
 import MainLayout from './components/Layout/MainLayout';
 import Sidebar from './components/Sidebar/Sidebar';
 import { SimpleDialog } from './modal/modal-email-user';
-import { searchByImage, sendMessage } from './services/api';
+import { searchByImage, searchImageWithText, sendMessage } from './services/api';
 import { welcomeMessage } from './utils/variable';
 
 
@@ -80,7 +80,7 @@ function App() {
       // Thêm message của bot
       const botMessage = {
         role: 'bot',
-        content: response.response || "Xin lỗi, tôi không hiểu.",
+        content: response.response || "Thành thật xin lỗi, tôi không hiểu yêu cầu của bạn.",
         data: response,
         timestamp: Date.now()
       };
@@ -153,6 +153,68 @@ function App() {
       const errorMessage = {
         role: 'bot',
         content: "⚠️ Lỗi xử lý ảnh. Vui lòng thử lại.",
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleImageWithTextSearch = async (file, text) => {
+    const imageUrl = URL.createObjectURL(file);
+
+    const userMessage = {
+      role: 'user',
+      content: `📷 ${text}`,
+      imageUrl: imageUrl,
+      timestamp: Date.now()
+    };
+    setMessages(prev => [...prev, userMessage]);
+
+    setIsLoading(true);
+
+    try {
+      const response = await searchImageWithText(file, text, sessionId);
+
+      // Cập nhật context nếu có
+      if (response.context) {
+        setContext(prev => ({ ...prev, ...response.context }));
+      }
+
+      if (response.products) {
+        setContext(prev => ({
+          ...prev,
+          current_products: response.products,
+          last_search_results: response.products.map(p => p.headcode)
+        }));
+      }
+
+      if (response.materials) {
+        setContext(prev => ({
+          ...prev,
+          current_materials: response.materials
+        }));
+      }
+
+      // Thêm bot message
+      const botMessage = {
+        role: 'bot',
+        content: response.response || "Đã phân tích ảnh và câu hỏi của bạn",
+        data: response,
+        timestamp: Date.now()
+      };
+      setMessages(prev => [...prev, botMessage]);
+
+      // Cập nhật suggested prompts
+      if (response.suggested_prompts) {
+        setSuggestedPrompts(response.suggested_prompts);
+      }
+    } catch (error) {
+      console.error('Error processing image with text:', error);
+      const errorMessage = {
+        role: 'bot',
+        content: "⚠️ Lỗi xử lý ảnh và văn bản. Vui lòng thử lại.",
         timestamp: Date.now()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -260,6 +322,7 @@ function App() {
                 <ChatInput
                   onSendMessage={handleSendMessage}
                   onImageUpload={handleImageSearch}
+                  onImageWithTextUpload={handleImageWithTextSearch}
                   disabled={isLoading}
                   lastMessage={messages[messages.length - 1]}
                 />
