@@ -452,4 +452,4 @@ if __name__ == "__main__":
 
     # main()
     # main_sync_data()
-    main_classify_materials()
+    # main_classify_materials()

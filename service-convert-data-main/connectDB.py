@@ -111,7 +111,6 @@ def get_main_db_connection():
     )
     return conn
 
-
 def map_postgres_type(data_type, udt_name):
     if data_type == "integer":
         return "INTEGER"
