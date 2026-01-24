@@ -7,7 +7,7 @@ from connectDB import (
 )
 
 from logServer import setup_logging
-from data_material import batch_classify_materials
+from func_gen_material_group import batch_classify_materials
 
 _MAIN_DB_TUNNEL = None
 

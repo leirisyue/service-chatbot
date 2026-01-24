@@ -6,7 +6,6 @@ from connectDB import (
 )
 
 from logServer import setup_logging
-from data_material import batch_classify_materials
 
 
 def copy_table_from_main_to_vector(table_name: str):

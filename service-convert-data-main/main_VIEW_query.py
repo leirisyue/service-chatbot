@@ -5,7 +5,6 @@ from connectDB import (
 )
 
 from logServer import setup_logging
-from data_material import batch_classify_materials
 
 def validate_main_tables_exist():
     conn = get_fetch_db_connection()
@@ -116,26 +115,37 @@ def build_merge_view_in_pthsp():
                 '''
                 CREATE OR REPLACE VIEW public."VIEW_MATERIAL_MERGE" AS
                 SELECT
-                    t1."idMaterial" AS id_sap,
-                    t1."NameMaterial" AS description,
-                    t1."codeSuplier" AS material_group,
-                    t1."unit" AS unit,
-                    t1."imagesURL" as images_url,
-                    t1."createdAt" as created_at,
-                    t1."updatedAt" as updated_at
-                FROM public."ListMaterialsBOQ" t1
+                    ROW_NUMBER() OVER (ORDER BY id_sap) AS idx,
+                    id_sap,
+                    material_name,
+                    material_group,
+                    unit,
+                    images_url,
+                    created_at,
+                    updated_at
+                FROM (
+                    SELECT
+                        t1."idMaterial" AS id_sap,
+                        t1."NameMaterial" AS material_name,
+                        t1."codeSuplier" AS material_group,
+                        t1."unit" AS unit,
+                        t1."imagesURL" AS images_url,
+                        t1."createdAt" AS created_at,
+                        t1."updatedAt" AS updated_at
+                    FROM public."ListMaterialsBOQ" t1
 
-                UNION ALL
+                    UNION ALL
 
-                SELECT
-                    t2."ID_Material_SAP" AS id_sap,
-                    t2."Des_Material_Sap" AS description,
-                    t2."materialGroupDescription" AS material_group,
-                    t2."Base_Unit" AS unit,
-                    t2."images_url" as images_url,
-                    t2."createdAt" as created_at,
-                    t2."updatedAt" as updated_at
-                FROM public."MD_Material_SAP" t2;
+                    SELECT
+                        t2."ID_Material_SAP" AS id_sap,
+                        t2."Des_Material_Sap" AS material_name,
+                        t2."materialGroupDescription" AS material_group,
+                        t2."Base_Unit" AS unit,
+                        t2."images_url" AS images_url,
+                        t2."createdAt" AS created_at,
+                        t2."updatedAt" AS updated_at
+                    FROM public."MD_Material_SAP" t2
+                ) src;
                 '''
             )
 
@@ -160,6 +170,7 @@ def main():
     except Exception:
         logging.exception("Merge failed")
         raise
+
 
 # ----------------------------------------------------------------------------------------------------
 if __name__ == "__main__":

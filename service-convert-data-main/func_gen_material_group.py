@@ -1,5 +1,6 @@
 
 import json
+import logging
 import os
 import time
 import uuid
@@ -29,7 +30,7 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
     model = genai.GenerativeModel("gemini-2.5-flash-lite")
 
     materials_text = "\n".join(
-        f"{i}. ID: {m['ID_Material_SAP']}, Name: {m['name']}"
+        f"{i}. ID: {m['id_sap']}, Name: {m['material_name']}"
         for i, m in enumerate(materials_batch, 1)
     )
 
@@ -52,7 +53,7 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
             JSON format:
             [
             {{
-                "ID_Material_SAP": "M001",
+                "id_sap": "M001",
                 "material_group": "Gỗ",
                 "material_subgroup": "Gỗ tự nhiên"
             }}
@@ -63,17 +64,18 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
 
     # ================= FALLBACK =================
     fallback = {
-        m["ID_Material_SAP"]: {
-            "ID_Material_SAP": m["ID_Material_SAP"],
+        m["id_sap"]: {
+            "id_sap": m["id_sap"],
             "material_group": "Not classified",
             "material_subgroup": "Not classified",
+            "idx": m.get("idx", 0),
         }
         for m in materials_batch
     }
 
-    # ✅ FIX CỨNG: KHÔNG PARSE RESPONSE RỖNG
     if not response_text or not response_text.strip():
         print("WARNING: Gemini returned empty response")
+        
         return list(fallback.values())
 
     try:
@@ -85,19 +87,26 @@ def batch_classify_materials(materials_batch: List[Dict]) -> List[Dict]:
         results = json.loads(clean)
 
         for r in results:
-            if "ID_Material_SAP" not in r:
+            if "id_sap" not in r:
                 continue
 
-            fallback[r["ID_Material_SAP"]] = {
-                "ID_Material_SAP": r["ID_Material_SAP"],
-                "material_group": r.get("material_group", "Not classified"),
+            fallback[r["id_sap"]] = {
+                "id_sap": r["id_sap"],
+                "material_group": r["material_group"] if r["material_group"] else r.get("material_group", "Not classified"),
                 "material_subgroup": r.get("material_subgroup", "Not classified"),
+                "idx": r.get("idx", 0),
             }
 
         return list(fallback.values())
 
     except Exception as e:
-        print(f"ERROR: parse Gemini response failed: {e}")
+        # Không để lỗi parse JSON làm dừng pipeline, chỉ log lại batch bị lỗi
+        logging.error(
+            "Gemini trả về JSON không hợp lệ, dùng fallback. Batch size=%s, id_sap=%s, error=%s",
+            len(materials_batch),
+            [m.get("id_sap") for m in materials_batch],
+            e,
+        )
         return list(fallback.values())
 
 # =================================================
@@ -124,7 +133,6 @@ def call_gemini_with_retry(model, prompt, max_retries=3, timeout=20):
             if response and response.text and response.text.strip():
                 return response.text
 
-            # ⚠️ empty response → retry
             print("WARNING: Gemini empty response, retrying...")
             time.sleep(2)
 
