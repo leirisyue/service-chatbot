@@ -2,7 +2,7 @@ import { useAtom } from 'jotai';
 import { useEffect, useRef, useState } from 'react';
 import { messagesAtom } from '../../atom/messageAtom';
 import { batchProducts, exportBOMReport, trackReject, trackView } from '../../services/api';
-import { formatTimestamp } from '../../utils/helpers';
+import { formatTimestamp, formatPrice } from '../../utils/helpers';
 import ProductListWithFeedback from './ProductList';
 
 import ReactMarkdown from "react-markdown";
@@ -139,7 +139,7 @@ function Message({ message, onSendMessage, typing }) {
 
     const botMessage = {
       role: 'bot',
-      content: botData?.response || 'Thành thật xin lỗi, tôi không hiểu yêu cầu của bạn.',
+      content: botData?.response || ' 💔  Thành thật xin lỗi, tôi không hiểu yêu cầu của bạn.',
       data: botData,
       suggested_prompts_mess: botData?.suggested_prompts_mess || [],
       timestamp: Date.now(),
@@ -298,8 +298,8 @@ function Message({ message, onSendMessage, typing }) {
                               <TableCell>{row?.id_sap}</TableCell>
                               <TableCell>{row?.material_subgroup} </TableCell>
                               <TableCell>{row?.quantity}/{row?.pm_unit || row?.unit}</TableCell>
-                              <TableCell>{row?.price?.toLocaleString("vi-VN") || row?.unit_price?.toLocaleString("vi-VN") || ''} {!!row?.price || !!row?.unit_price ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
-                              <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''} {!!row?.total_cost ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
+                              <TableCell>{formatPrice(row?.price ?? row?.unit_price)} {!!row?.price || !!row?.unit_price ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
+                              <TableCell>{formatPrice(row?.total_cost)} {!!row?.total_cost ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -330,7 +330,7 @@ function Message({ message, onSendMessage, typing }) {
                               <TableCell>{row.headcode}</TableCell>
                               <TableCell width={160}> {row.sub_category}</TableCell>
                               <TableCell width={80}>{row.material_primary}</TableCell>
-                              <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''} {!!row?.total_cost ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
+                              <TableCell>{formatPrice(row?.total_cost)} {!!row?.total_cost ? (row?.unit_price ?? 'VNĐ') : ''}</TableCell>
                               <TableCell>{row.project}</TableCell>
                             </TableRow>
                           ))}
@@ -436,7 +436,7 @@ function Message({ message, onSendMessage, typing }) {
                                 <TableCell>{row?.headcode}</TableCell>
                                 <TableCell width={160}> {row?.sub_category}</TableCell>
                                 <TableCell width={80}>{row?.material_primary}</TableCell>
-                                <TableCell>{row?.total_cost?.toLocaleString("vi-VN") || ''} {!!row?.total_cost ? (row?.unit_price || 'VNĐ') : ''}</TableCell>
+                                <TableCell>{formatPrice(row?.total_cost)} {!!row?.total_cost ? (row?.unit_price || 'VNĐ') : ''}</TableCell>
                                 <TableCell>{row?.project}</TableCell>
                               </TableRow>
                             ))}

@@ -81,7 +81,7 @@ function App() {
       // Thêm message của bot
       const botMessage = {
         role: 'bot',
-        content: response.response || "Thành thật xin lỗi, tôi không hiểu yêu cầu của bạn.",
+        content: response.response || " 💔  Thành thật xin lỗi, tôi không hiểu yêu cầu của bạn.",
         data: response,
         timestamp: Date.now()
       };

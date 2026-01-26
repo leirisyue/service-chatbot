@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # Table names
     # MATERIALS_TABLE: str = "materials_qwen"
     MATERIALS_TABLE: str = "material_merge"
+    MATERIALS_VIEW: str = "VIEW_MATERIAL_MERGE"
+    
+    PRODUCT_TABLE: str = "products_qwen"
+    PRODUCT_VIEW: str = "VIEW_PRODUCT_MERGE"
+    
+    PRODUCT_MATERIALS: str = "product_materials"
+    
+    
     
     # Qwen Embedding settings
     QWEN_HOST: str = "192.168.4.102"

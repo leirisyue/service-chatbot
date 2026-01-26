@@ -113,39 +113,34 @@ def build_merge_view_in_pthsp():
 
             cur.execute(
                 '''
-                CREATE OR REPLACE VIEW public."VIEW_MATERIAL_MERGE" AS
-                SELECT
-                    ROW_NUMBER() OVER (ORDER BY id_sap) AS idx,
+                SELECT row_number() OVER (ORDER BY id_sap) AS idx,
                     id_sap,
                     material_name,
                     material_group,
                     unit,
-                    images_url,
+                    image_url,
+                    material_subprice,
                     created_at,
                     updated_at
-                FROM (
-                    SELECT
-                        t1."idMaterial" AS id_sap,
-                        t1."NameMaterial" AS material_name,
-                        t1."codeSuplier" AS material_group,
-                        t1."unit" AS unit,
-                        t1."imagesURL" AS images_url,
-                        t1."createdAt" AS created_at,
-                        t1."updatedAt" AS updated_at
-                    FROM public."ListMaterialsBOQ" t1
-
-                    UNION ALL
-
-                    SELECT
-                        t2."ID_Material_SAP" AS id_sap,
-                        t2."Des_Material_Sap" AS material_name,
-                        t2."materialGroupDescription" AS material_group,
-                        t2."Base_Unit" AS unit,
-                        t2."images_url" AS images_url,
-                        t2."createdAt" AS created_at,
-                        t2."updatedAt" AS updated_at
-                    FROM public."MD_Material_SAP" t2
-                ) src;
+                FROM ( SELECT t1."idMaterial" AS id_sap,
+                            t1."NameMaterial" AS material_name,
+                            t1."codeSuplier" AS material_group,
+                            t1.unit,
+                            t1."imagesURL" AS image_url,
+                            NULL::numeric AS material_subprice,
+                            t1."createdAt" AS created_at,
+                            t1."updatedAt" AS updated_at
+                        FROM "ListMaterialsBOQ" t1
+                        UNION ALL
+                        SELECT t2."ID_Material_SAP" AS id_sap,
+                            t2."Des_Material_Sap" AS material_name,
+                            t2."materialGroupDescription" AS material_group,
+                            t2."Base_Unit" AS unit,
+                            t2.images_url AS image_url,
+                            NULL::numeric AS material_subprice,
+                            t2."createdAt" AS created_at,
+                            t2."updatedAt" AS updated_at
+                        FROM "MD_Material_SAP" t2) src;
                 '''
             )
 

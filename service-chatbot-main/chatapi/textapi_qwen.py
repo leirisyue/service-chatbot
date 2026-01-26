@@ -57,6 +57,35 @@ def build_markdown_table(headers: List[str], rows: List[List[str]]) -> str:
 def get_db():
     return psycopg2.connect(**settings.DB_CONFIG)
 
+def get_db_origin():
+    return psycopg2.connect(**settings.DB_CONFIG_ORIGIN)
+
+def _fetch_material_view_data(id_saps: List[str]) -> Dict[str, dict]:
+    if not id_saps:
+        return {}
+
+    # Deduplicate to avoid unnecessary DB load
+    unique_ids = list({m_id for m_id in id_saps if m_id})
+    if not unique_ids:
+        return {}
+
+    try:
+        conn = get_db_origin()
+        cur = conn.cursor(cursor_factory=RealDictCursor)
+        cur.execute(
+            'SELECT id_sap, material_subprice, unit, image_url '
+            f'FROM public."{settings.MATERIALS_VIEW}" '
+            'WHERE id_sap = ANY(%s)',
+            (unique_ids,)
+        )
+        rows = cur.fetchall()
+        conn.close()
+    except Exception as e:
+        print(f"WARNING: Failed to fetch material data from VIEW_MATERIAL_MERGE: {e}")
+        return {}
+
+    return {row["id_sap"]: row for row in rows if row.get("id_sap")}
+
 genai.configure(api_key=settings.My_GOOGLE_API_KEY)
 
 router = APIRouter()
@@ -694,7 +723,7 @@ def search_products_by_material(material_query: str, params: Dict):
                 COUNT(*) OVER (PARTITION BY p.headcode) as material_match_count
             FROM products_qwen p
             INNER JOIN product_materials pm ON p.headcode = pm.product_headcode
-            INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+            INNER JOIN {settings.MATERIALS_TABLE} m ON pm.material_id_sap = m.id_sap
             WHERE m.id_sap = ANY(%s)
             {category_filter}
             ORDER BY material_match_count DESC, p.product_name ASC
@@ -823,19 +852,17 @@ def get_product_materials(headcode: str):
             "success": False
         }
     
-    sql = """
+    sql = f"""
         SELECT 
             m.id_sap,
             m.material_name, 
             m.material_group,
             m.material_subgroup,
             m.material_subprice,
-            m.unit as material_unit,
-            m.image_url,
             pm.quantity, 
             pm.unit as pm_unit
         FROM product_materials pm
-        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+        INNER JOIN {settings.MATERIALS_TABLE} m ON pm.id_sap = m.id_sap
         WHERE pm.product_headcode = %s
         ORDER BY m.material_name ASC
     """
@@ -854,17 +881,11 @@ def get_product_materials(headcode: str):
     
     conn.close()
     
-    # Get price history (if needed) from first material with data
+    # Enrich with data from VIEW_MATERIAL_MERGE (origin DB)
+    origin_map = _fetch_material_view_data([m['id_sap'] for m in materials])
+
+    # Get price history (if needed) from first material with data (prefer origin view)
     price_history = []
-    try:
-        first_with_price = next(
-            (m for m in materials if m.get('material_subprice')),
-            None
-        )
-        if first_with_price and first_with_price['material_subprice']:
-            price_history = json.loads(first_with_price['material_subprice'])
-    except Exception:
-        pass
     
     if not materials:
         return {
@@ -881,7 +902,9 @@ def get_product_materials(headcode: str):
     materials_with_price = []
     
     for mat in materials:
-        latest_price = get_latest_material_price(mat['material_subprice'])
+        origin_info = origin_map.get(mat['id_sap'], {})
+        merged_subprice = origin_info.get('material_subprice') or mat.get('material_subprice')
+        latest_price = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
         quantity = float(mat['quantity']) if mat['quantity'] else 0.0  # ✅
         total_cost = quantity * latest_price
         total += total_cost
@@ -891,16 +914,27 @@ def get_product_materials(headcode: str):
             'material_name': mat['material_name'],
             'material_group': mat['material_group'],
             'material_subgroup': mat['material_subgroup'],
-            'material_unit': mat['material_unit'],
-            'image_url': mat['image_url'],
+            'material_unit': origin_info.get('unit') or None,
+            'image_url': origin_info.get('image_url'),
             'quantity': quantity,
             'pm_unit': mat['pm_unit'],
             'price': latest_price,
             'unit_price': latest_price,
-            'unit': mat['material_unit'],
+            'unit': origin_info.get('unit') or None,
             'total_cost': total_cost,
-            'price_history': mat['material_subprice']
+            'price_history': merged_subprice
         })
+
+    # Rebuild price_history from enriched materials list
+    try:
+        first_with_price = next(
+            (m for m in materials_with_price if m.get('price_history')),
+            None
+        )
+        if first_with_price and first_with_price['price_history']:
+            price_history = json.loads(first_with_price['price_history'])
+    except Exception:
+        pass
     
     response = f" 🎉 **ĐỊNH MỨC VẬT LIỆU: {prod['product_name']}**\n"
     response += f"🏷️ Mã: `{headcode}`\n"
@@ -983,20 +1017,37 @@ def calculate_product_cost(headcode: str):
             "success": False
         }
     
-    sql = """
+    # sql = f"""
+    #     SELECT 
+    #         m.id_sap,
+    #         m.material_name,
+    #         m.material_group,
+    #         mv.material_subprice,
+    #         mv.quantity,
+    #         mv.unit AS pm_unit
+    #     FROM {settings.PRODUCT_MATERIALS} pm
+    #     INNER JOIN {settings.MATERIALS_TABLE} m 
+    #         ON pm.material_id_sap = m.id_sap
+    #     INNER JOIN {settings.MATERIALS_VIEW} mv
+    #         ON mv.id_sap = m.id_sap
+    #     AND mv.product_headcode = pm.product_headcode
+    #     WHERE pm.product_headcode = %s
+    #     ORDER BY m.material_name ASC;
+    # """
+    sql = f"""
         SELECT 
+            m.id_sap,
             m.material_name,
             m.material_group,
-            m.material_subprice,
-            m.unit as material_unit,
-            pm.quantity,
-            pm.unit as pm_unit,
-            m.image_url,
-            m.id_sap
-        FROM product_materials pm
-        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
-        WHERE pm.product_headcode = %s
-        ORDER BY m.material_name ASC
+            mv.material_subprice,
+            mv.quantity,
+            mv.unit AS pm_unit
+        FROM {settings.PRODUCT_MATERIALS} pm
+        INNER JOIN {settings.MATERIALS_TABLE} m 
+            ON pm.material_id_sap = m.id_sap
+        INNER JOIN {settings.MATERIALS_VIEW} mv
+            ON mv.id_sap = m.id_sap
+        ORDER BY m.material_name ASC;
     """
     try:
         cur.execute(sql, (headcode,))
@@ -1029,10 +1080,15 @@ def calculate_product_cost(headcode: str):
     material_cost = 0.0
     material_count = len(materials)
     materials_detail = []
-    
+
+    # Enrich materials from VIEW_MATERIAL_MERGE
+    origin_map = _fetch_material_view_data([m['id_sap'] for m in materials])
+
     for mat in materials:
+        origin_info = origin_map.get(mat['id_sap'], {})
+        merged_subprice = origin_info.get('material_subprice') or mat.get('material_subprice')
         quantity = float(mat['quantity']) if mat['quantity'] else 0.0
-        latest_price = get_latest_material_price(mat['material_subprice'])
+        latest_price = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
         total_cost = quantity * latest_price
         material_cost += total_cost
         
@@ -1043,7 +1099,7 @@ def calculate_product_cost(headcode: str):
             'unit': mat['pm_unit'],
             'unit_price': latest_price,
             'total_cost': total_cost,
-            'image_url': mat['image_url'],
+            'image_url': origin_info.get('image_url'),
             'id_sap': mat['id_sap']
         })
 
@@ -1148,7 +1204,6 @@ def search_materials(params: Dict):
             sql = f"""
                 SELECT 
                     id_sap, material_name, material_group, material_subgroup,
-                    material_subprice, unit, image_url,
                     (description_embedding <=> %s::vector) as distance
                 FROM {settings.MATERIALS_TABLE}
                 WHERE description_embedding IS NOT NULL AND {filter_clause}
@@ -1158,7 +1213,9 @@ def search_materials(params: Dict):
 
             cur.execute(sql, [query_vector] + filter_params)
             results = cur.fetchall()
+            origin_map = _fetch_material_view_data([m['id_sap'] for m in results]) if results else {}
             
+            print(f"INFO: Vector search returned {origin_map} materials")
             if results:
                 # ✅ POST-FILTER: If main_keyword exists, only keep materials containing that keyword
                 if main_keyword:
@@ -1180,12 +1237,24 @@ def search_materials(params: Dict):
                         
                         materials_with_price = []
                         for mat in results:
+                            origin_info = origin_map.get(mat['id_sap'], {})
+                            merged_subprice = origin_info.get('material_subprice') or mat.get('material_subprice')
                             mat_dict = dict(mat)
-                            mat_dict['price'] = get_latest_material_price(mat_dict['material_subprice'])
+                            mat_dict['material_subprice'] = merged_subprice
+                            mat_dict['unit'] = origin_info.get('unit')
+                            mat_dict['image_url'] = origin_info.get('image_url')
+                            mat_dict['price'] = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
                             materials_with_price.append(mat_dict)
                         
                         conn.close()
+                        
+                        text_response = ""
+                        if len(materials_with_price)>0:
+                            text_response =  f"Đã tìm thấy {len(materials_with_price)} vật liệu phù hợp với từ khóa '{params.get('material_name')}'."
+                        else:
+                            text_response = "Không tìm thấy vật liệu phù hợp."
                         return {
+                            "response": text_response,    
                             "materials": materials_with_price,
                             "search_method": "vector",
                             "success": True
@@ -1195,18 +1264,34 @@ def search_materials(params: Dict):
                     
                     materials_with_price = []
                     for mat in results[:10]:
+                        origin_info = origin_map.get(mat['id_sap'], {})
+                        merged_subprice = origin_info.get('material_subprice') or mat.get('material_subprice')
                         mat_dict = dict(mat)
-                        mat_dict['price'] = get_latest_material_price(mat_dict['material_subprice'])
+                        mat_dict['material_subprice'] = merged_subprice
+                        mat_dict['unit'] = origin_info.get('unit')
+                        mat_dict['image_url'] = origin_info.get('image_url')
+                        mat_dict['price'] = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
                         materials_with_price.append(mat_dict)
                     
                     conn.close()
+                    text_response = ""
+                    if len(materials_with_price)>0:
+                        text_response =  f"Đã tìm thấy {len(materials_with_price)} vật liệu phù hợp với từ khóa '{params.get('material_name')}'."
+                    else:
+                        text_response = "Không tìm thấy vật liệu phù hợp."
                     return {
+                        "response": text_response,
                         "materials": materials_with_price,
                         "search_method": "vector",
                         "success": True
                     }
         except Exception as e:
             print(f"WARNING: Vector search failed: {e}")
+            # Reset transaction so keyword search below can proceed
+            try:
+                conn.rollback()
+            except Exception:
+                pass
     
     print("INFO: Keyword search for materials")
     conditions = []
@@ -1243,6 +1328,8 @@ def search_materials(params: Dict):
         cur.execute(sql, values)
         results = cur.fetchall()
         conn.close()
+
+        origin_map = _fetch_material_view_data([m['id_sap'] for m in results]) if results else {}
         
         if not results:
             return {
@@ -1273,8 +1360,13 @@ def search_materials(params: Dict):
         
         materials_with_price = []
         for mat in results[:15]:  # Limit to 15 results
+            origin_info = origin_map.get(mat['id_sap'], {})
+            merged_subprice = origin_info.get('material_subprice') or mat.get('material_subprice')
             mat_dict = dict(mat)
-            mat_dict['price'] = get_latest_material_price(mat.get('material_subprice'))
+            mat_dict['material_subprice'] = merged_subprice
+            mat_dict['unit'] = origin_info.get('unit')
+            mat_dict['image_url'] = origin_info.get('image_url')
+            mat_dict['price'] = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
             materials_with_price.append(mat_dict)
         
         print(f"SUCCESS: Keyword search: Found {len(materials_with_price)} materials")
@@ -1298,9 +1390,9 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     if id_sap:
-        cur.execute("SELECT * FROM materials WHERE id_sap = %s", (id_sap,))
+        cur.execute(f"SELECT * FROM {settings.MATERIALS_TABLE} WHERE id_sap = %s", (id_sap,))
     elif material_name:
-        cur.execute("SELECT * FROM materials WHERE material_name ILIKE %s LIMIT 1", (f"%{material_name}%",))
+        cur.execute(f"SELECT * FROM {settings.MATERIALS_TABLE} WHERE material_name ILIKE %s LIMIT 1", (f"%{material_name}%",))
     else:
         conn.close()
         return {
@@ -1317,7 +1409,11 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
             "success": False
         }
     
-    latest_price = get_latest_material_price(material['material_subprice'])
+    # Enrich from VIEW_MATERIAL_MERGE
+    origin_map = _fetch_material_view_data([material['id_sap']])
+    origin_info = origin_map.get(material['id_sap'], {})
+    merged_subprice = origin_info.get('material_subprice') or material.get('material_subprice')
+    latest_price = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
 
     sql = """
         SELECT 
@@ -1329,7 +1425,7 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
             pm.quantity,
             pm.unit
         FROM product_materials pm
-        INNER JOIN products p ON pm.product_headcode = p.headcode
+        INNER JOIN products_qwen p ON pm.product_headcode = p.headcode
         WHERE pm.material_id_sap = %s
         ORDER BY p.product_name ASC
         LIMIT 20
@@ -1344,13 +1440,13 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         used_in_products = []
     
     try:
-        cur.execute("""
+        cur.execute(f"""
             SELECT 
                 COUNT(DISTINCT pm.product_headcode) as product_count,
                 COUNT(DISTINCT p.project) as project_count,
                 SUM(pm.quantity) as total_quantity
-            FROM product_materials pm
-            LEFT JOIN products p ON pm.product_headcode = p.headcode
+            FROM {settings.PRODUCT_MATERIALS} pm
+            LEFT JOIN products_qwen p ON pm.product_headcode = p.headcode
             WHERE pm.material_id_sap = %s
         """, (material['id_sap'],))
         stats = cur.fetchone()
@@ -1366,9 +1462,9 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
     
     price_history = []
     try:
-        if material['material_subprice']:
-            price_history = json.loads(material['material_subprice'])
-    except:
+        if merged_subprice:
+            price_history = json.loads(merged_subprice)
+    except Exception:
         pass
     
     response = f"🧱 **CHI TIẾT NGUYÊN VẬT LIỆU**\n\n"
@@ -1378,11 +1474,16 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
                     
     if material.get('material_subgroup'):
         response += f" - {material['material_subgroup']}\n"
-    response += f"💰 **Giá mới nhất:** {latest_price:,.2f} VNĐ/{material['unit']}\n"
+
+    # Lấy đơn vị, nếu không có thì để trống để tránh lỗi KeyError
+    unit_display = origin_info.get('unit') or material.get('unit') or ""
+    response += f"💰 **Giá mới nhất:** {latest_price:,.2f} VNĐ/{unit_display}\n"
     response += f"📊 **THỐNG KÊ SỬ DỤNG:**\n"
-    response += f"• Được sử dụng trong **{stats['product_count']} sản phẩm**\n"
-    response += f"• Xuất hiện ở **{stats['project_count']} dự án**\n"
-    response += f"• Tổng số lượng: **{stats.get('total_quantity', 0) or 0} {material['unit']}**\n"  
+    response += f"• Được sử dụng trong **{stats.get('product_count', 0)} sản phẩm**\n"
+    response += f"• Xuất hiện ở **{stats.get('project_count', 0)} dự án**\n"
+    # Dùng cùng unit_display cho phần thống kê, nếu không có thì để trống
+    total_qty = stats.get('total_quantity', 0) or 0
+    response += f"• Tổng số lượng: **{total_qty} {unit_display}**\n"  
     response += "\n---\n\n"
     
     if price_history and len(price_history) > 0:
@@ -1412,8 +1513,9 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         response += "🔗 **CHƯA CÓ SẢN PHẨM SỬ DỤNG**\n\n"
         response += "_Vật liệu này chưa được gắn vào sản phẩm nào trong hệ thống._\n\n"
     
-    if material.get('image_url'):
-        response += f"---\n\n🖼️ **Xem ảnh vật liệu:** [Google Drive Link]({material['image_url']})\n"
+    image_url = origin_info.get('image_url') or material.get('image_url')
+    if image_url:
+        response += f"---\n\n🖼️ **Xem ảnh vật liệu:** [Google Drive Link]({image_url})\n"
         response += f"(Click để xem ảnh chi tiết)"
     
     return {
@@ -1421,6 +1523,9 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
         # "material_detail": dict(material),
         "materials": [{  # ✅ Change to list like search_materials
             **dict(material),
+            'material_subprice': merged_subprice,
+            'unit': origin_info.get('unit') or material.get('unit'),
+            'image_url': image_url,
             'price': latest_price  # ✅ Add 'price' key
         }],
         "latest_price": latest_price,
@@ -1435,45 +1540,53 @@ def list_material_groups():
     """Liệt kê các nhóm vật liệu với giá tính từ material_subprice"""
     conn = get_db()
     cur = conn.cursor(cursor_factory=RealDictCursor)
-    
+
+    # Lấy danh sách nhóm + id_sap từ bảng materials chính
     sql = f"""
-        SELECT 
-            material_group,
-            COUNT(*) as count,
-            array_agg(DISTINCT material_subprice) as all_prices
+        SELECT material_group, id_sap
         FROM {settings.MATERIALS_TABLE}
         WHERE material_group IS NOT NULL
-        GROUP BY material_group
-        ORDER BY count DESC
     """
     cur.execute(sql)
-    groups = cur.fetchall()
+    rows = cur.fetchall()
     conn.close()
-    
-    if not groups:
+
+    if not rows:
         return {
             "response": "Chưa có dữ liệu nhóm vật liệu.",
             "success": False
         }
-    
-    response = f"📋 **DANH SÁCH NHÓM VẬT LIỆU ({len(groups)} nhóm):**\n\n"
-    
+    # Gom nhóm các id_sap theo material_group
+    groups_map: Dict[str, List[str]] = {}
+    for row in rows:
+        group = row['material_group']
+        if group not in groups_map:
+            groups_map[group] = []
+        groups_map[group].append(row['id_sap'])
+
+    # Lấy giá từ VIEW_MATERIAL_MERGE cho tất cả id_sap
+    all_ids = [row['id_sap'] for row in rows]
+    origin_map = _fetch_material_view_data(all_ids)
+
+    response = f"📋 **DANH SÁCH NHÓM VẬT LIỆU ({len(groups_map)} nhóm):**\n\n"
+
     groups_with_stats = []
-    for g in groups:
+    for group, id_list in groups_map.items():
         prices = []
-        for price_json in g['all_prices']:
-            if price_json:
-                latest = get_latest_material_price(price_json)
+        for mid in id_list:
+            info = origin_map.get(mid)
+            if info and info.get('material_subprice'):
+                latest = get_latest_material_price(info['material_subprice'])
                 if latest > 0:
                     prices.append(latest)
-        
+
         avg_price = sum(prices) / len(prices) if prices else 0
         min_price = min(prices) if prices else 0
         max_price = max(prices) if prices else 0
-        
+
         groups_with_stats.append({
-            'material_group': g['material_group'],
-            'count': g['count'],
+            'material_group': group,
+            'count': len(id_list),
             'avg_price': avg_price,
             'min_price': min_price,
             'max_price': max_price
@@ -1498,7 +1611,7 @@ def list_products_by_category():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     # Get list of products by category, limit 5 products per category
-    sql = """
+    sql = f"""
         WITH ranked_products AS (
             SELECT 
                 headcode,
@@ -1507,7 +1620,7 @@ def list_products_by_category():
                 sub_category,
                 material_primary,
                 ROW_NUMBER() OVER (PARTITION BY category ORDER BY product_name) as rn
-            FROM products_qwen
+            FROM {settings.PRODUCTS_TABLE}
             WHERE category IS NOT NULL
         )
         SELECT 
@@ -1582,7 +1695,7 @@ def chat(msg: ChatMessage):
         intent_data = get_intent_and_params(user_message, context)
         
         if intent_data.get("intent") == "error":
-            error_msg = intent_data.get("error_message", "Xin lỗi, hệ thống đang bận. Vui lòng thử lại.")
+            error_msg = intent_data.get("error_message", " 💔  Xin lỗi, hệ thống đang bận. Vui lòng thử lại.")
             return {
                 "response": error_msg,
                 "success": False,
@@ -1944,12 +2057,12 @@ def chat(msg: ChatMessage):
                         f"💡 **Để tôi tư vấn chính xác hơn:** {follow_up}\n\n"
                         f"*Dưới đây là các vật liệu đang được sử dụng phổ biến:*"
                     )
-                # else:
-                #     response_text = (
-                #         f"✅ **TƯ VẤN VẬT LIỆU CHUYÊN SÂU**\n"
-                #         f"Dựa trên nhu cầu của bạn, **{len(materials)} vật liệu** dưới đây đang được sử dụng phổ biến và phù hợp nhất.\n\n"
-                #     )
-                #     # 🆕 Hiển thị ranking info
+                else:
+                    response_text = (
+                        f"✅ **TƯ VẤN VẬT LIỆU PHÙ HỢP VỚI YÊU CẦU CỦA BẠN**\n"
+                        f"Dựa trên nhu cầu của bạn, **{len(materials)} vật liệu** dưới đây đang được sử dụng phổ biến và phù hợp nhất.\n\n"
+                    )
+                    # 🆕 Hiển thị ranking info
                 #     if ranking_summary['ranking_applied']:
                 #         response_text += f"\n\n⭐ **{ranking_summary['boosted_items']} vật liệu** được ưu tiên."
 
@@ -2077,7 +2190,7 @@ def chat(msg: ChatMessage):
         return {
             "response": (
                 "⏱️ **YÊU CẦU MẤT QUÁ LÂU**\n\n"
-                "Xin lỗi, hệ thống không thể xử lý yêu cầu của bạn trong thời gian cho phép.\n\n"
+                "💔 Xin lỗi, hệ thống không thể xử lý yêu cầu của bạn trong thời gian cho phép.\n\n"
                 "**💡 Vui lòng thử:**\n"
                 "• Đơn giản hóa yêu cầu tìm kiếm\n"
                 "• Thử lại sau ít phút\n"
@@ -2119,8 +2232,8 @@ def chat(msg: ChatMessage):
         return {
             "response": (
                 "⚠️ **LỖI HỆ THỐNG**\n\n"
-                "Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu của bạn.\n\n"
-                "Vui lòng thử lại sau ít phút hoặc liên hệ với bộ phận hỗ trợ."
+                "💔 Xin lỗi, đã có lỗi xảy ra khi xử lý yêu cầu của bạn.\n\n"
+                "⏱️ Vui lòng thử lại sau ít phút hoặc liên hệ với bộ phận hỗ trợ."
             ),
             "success": False,
             "suggested_prompts": [
@@ -2197,8 +2310,8 @@ def batch_product_operations(request: BatchProductRequest):
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             
-            # Lấy tất cả vật liệu của các sản phẩm
-            cur.execute("""
+            # Lấy tất cả vật liệu của các sản phẩm (core fields từ bảng materials chính)
+            cur.execute(f"""
                 SELECT 
                     p.headcode,
                     p.product_name,
@@ -2206,12 +2319,11 @@ def batch_product_operations(request: BatchProductRequest):
                     m.material_name,
                     m.material_group,
                     m.material_subprice,
-                    m.unit,
                     pm.quantity,
                     pm.unit as pm_unit
                 FROM product_materials pm
                 INNER JOIN products_qwen p ON pm.product_headcode = p.headcode
-                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                INNER JOIN {settings.MATERIALS_TABLE} m ON pm.material_id_sap = m.id_sap
                 WHERE p.headcode = ANY(%s)
                 ORDER BY p.product_name, m.material_name
             """, (headcodes,))
@@ -2225,6 +2337,9 @@ def batch_product_operations(request: BatchProductRequest):
                     "success": False
                 }
             
+            # Enrich vật liệu từ VIEW_MATERIAL_MERGE
+            origin_map = _fetch_material_view_data([r['id_sap'] for r in records]) if records else {}
+
             # Group by product
             products_dict = {}
             for rec in records:
@@ -2236,7 +2351,9 @@ def batch_product_operations(request: BatchProductRequest):
                         'materials': []
                     }
                 
-                price = get_latest_material_price(rec['material_subprice'])
+                origin_info = origin_map.get(rec['id_sap'], {})
+                merged_subprice = origin_info.get('material_subprice') or rec.get('material_subprice')
+                price = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
                 qty = float(rec['quantity']) if rec['quantity'] else 0.0
                 
                 products_dict[hc]['materials'].append({
@@ -2318,11 +2435,12 @@ def batch_product_operations(request: BatchProductRequest):
             conn = get_db()
             cur = conn.cursor(cursor_factory=RealDictCursor)
             
-            cur.execute("""
+            cur.execute(f"""
                 SELECT 
                     p.headcode,
                     p.product_name,
                     p.category,
+                    m.id_sap,
                     m.material_name,
                     m.material_group,
                     m.material_subprice,
@@ -2330,7 +2448,7 @@ def batch_product_operations(request: BatchProductRequest):
                     pm.unit
                 FROM product_materials pm
                 INNER JOIN products_qwen p ON pm.product_headcode = p.headcode
-                INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+                INNER JOIN {settings.MATERIALS_TABLE} m ON pm.material_id_sap = m.id_sap
                 WHERE p.headcode = ANY(%s)
                 ORDER BY p.product_name
             """, (headcodes,))
@@ -2344,6 +2462,9 @@ def batch_product_operations(request: BatchProductRequest):
                     "success": False
                 }
             
+            # Enrich dữ liệu vật liệu từ VIEW_MATERIAL_MERGE
+            origin_map = _fetch_material_view_data([r['id_sap'] for r in records]) if records else {}
+
             # Tính chi phí từng sản phẩm
             products_cost = {}
             for rec in records:
@@ -2358,7 +2479,9 @@ def batch_product_operations(request: BatchProductRequest):
                     }
                 
                 qty = float(rec['quantity']) if rec['quantity'] else 0.0
-                price = get_latest_material_price(rec['material_subprice'])
+                origin_info = origin_map.get(rec['id_sap'], {})
+                merged_subprice = origin_info.get('material_subprice') or rec.get('material_subprice')
+                price = get_latest_material_price(merged_subprice) if merged_subprice else 0.0
                 total = qty * price
                 
                 products_cost[hc]['material_cost'] += total
