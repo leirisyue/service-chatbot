@@ -13,8 +13,15 @@ _VECTOR_DB_TUNNEL = None
 
 load_dotenv()
 
+# Set Google Cloud credentials if provided
+if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+
 class Settings(BaseSettings):
-    My_GOOGLE_API_KEY: str = ""  # Make optional with default value
+    My_GOOGLE_API_KEY: str = os.getenv("My_GOOGLE_API_KEY", "localhost")
+    GOOGLE_PROJECT_ID: str = os.getenv("GOOGLE_PROJECT_ID", "aa-aibuild")
+    GOOGLE_LOCATION: str = os.getenv("GOOGLE_LOCATION", "us-central1")
+    GOOGLE_APPLICATION_CREDENTIALS: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
     
     # API settings
     API_URL: str = "http://127.0.0.1:8000"
@@ -40,9 +47,8 @@ class Settings(BaseSettings):
     MATERIALS_VIEW: str = "VIEW_MATERIAL_MERGE"
     
     PRODUCT_TABLE: str = "products_qwen"
-    PRODUCT_VIEW: str = "VIEW_PRODUCT_MERGE"
     
-    PRODUCT_MATERIALS: str = "product_materials"
+    PRODUCT_MATERIALS_TABLE: str = "product_materials"
     
     # Qwen Embedding settings
     QWEN_HOST: str = "192.168.4.102"
@@ -57,7 +63,6 @@ class Settings(BaseSettings):
     SIMILARITY_THRESHOLD_MEDIUM: float = 0.35  # For ranking
     SIMILARITY_THRESHOLD_HIGH: float = 0.7  # For feedback matching
     SIMILARITY_THRESHOLD_VERY_HIGH: float = 0.85  # For strict matching
-    
     
     MAIN_DB_HOST: str = os.getenv("MAIN_DB_HOST", "localhost")
     MAIN_DB_PORT: str = os.getenv("MAIN_DB_PORT", "5432")
@@ -174,7 +179,7 @@ class Settings(BaseSettings):
 
     @property
     def DB_CONFIG_ORIGIN(self) -> Dict[str, str]:
-        tunnel = self._ensure_main_db_tunnel()
+        tunnel = self._ensure_main_db_tunnel
 
         if tunnel is not None:
             host = "127.0.0.1"

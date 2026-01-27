@@ -95,7 +95,7 @@ router = APIRouter()
 def generate_suggested_prompts(context_type: str, context_data: Dict = None, count: int = 4) -> List[str]:
     
     model = genai.GenerativeModel("gemini-2.5-flash")
-    
+        
     prompt = f"""
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
         Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI, 
@@ -463,7 +463,7 @@ def get_intent_and_params(user_message: str, context: Dict) -> Dict:
             "intent": "error",
             "raw": "No response from AI - timeout or API error",
             "success": False,
-            "error_message": "Hệ thống đang quá tải. Vui lòng thử lại sau ít phút."
+            "error_message": " 💔 Hệ thống đang quá tải. thành thật xin lỗi!. Vui lòng thử lại sau ít phút."
         }
     
     try:
@@ -860,7 +860,7 @@ def get_product_materials(headcode: str):
             m.material_subprice,
             pm.quantity, 
             pm.unit as pm_unit
-        FROM product_materials pm
+        FROM {settings.PRODUCT_MATERIALS_TABLE} pm
         INNER JOIN {settings.MATERIALS_TABLE} m ON pm.id_sap = m.id_sap
         WHERE pm.product_headcode = %s
         ORDER BY m.material_name ASC
@@ -1016,36 +1016,19 @@ def calculate_product_cost(headcode: str):
             "success": False
         }
     
-    # sql = f"""
-    #     SELECT 
-    #         m.id_sap,
-    #         m.material_name,
-    #         m.material_group,
-    #         mv.material_subprice,
-    #         mv.quantity,
-    #         mv.unit AS pm_unit
-    #     FROM {settings.PRODUCT_MATERIALS} pm
-    #     INNER JOIN {settings.MATERIALS_TABLE} m 
-    #         ON pm.material_id_sap = m.id_sap
-    #     INNER JOIN {settings.MATERIALS_VIEW} mv
-    #         ON mv.id_sap = m.id_sap
-    #     AND mv.product_headcode = pm.product_headcode
-    #     WHERE pm.product_headcode = %s
-    #     ORDER BY m.material_name ASC;
-    # """
+    # Lấy danh sách vật liệu từ DB vector (PRODUCT_MATERIALS_TABLE + MATERIALS_TABLE)
+    # Sau đó enrich giá từ DB gốc qua VIEW_MATERIAL_MERGE (_fetch_material_view_data)
     sql = f"""
         SELECT 
             m.id_sap,
             m.material_name,
             m.material_group,
-            mv.material_subprice,
-            mv.quantity,
-            mv.unit AS pm_unit
-        FROM {settings.PRODUCT_MATERIALS} pm
+            pm.quantity,
+            pm.unit AS pm_unit
+        FROM {settings.PRODUCT_MATERIALS_TABLE} pm
         INNER JOIN {settings.MATERIALS_TABLE} m 
             ON pm.material_id_sap = m.id_sap
-        INNER JOIN {settings.MATERIALS_VIEW} mv
-            ON mv.id_sap = m.id_sap
+        WHERE pm.product_headcode = %s
         ORDER BY m.material_name ASC;
     """
     try:
@@ -1444,8 +1427,8 @@ def get_material_detail(id_sap: str = None, material_name: str = None):
                 COUNT(DISTINCT pm.product_headcode) as product_count,
                 COUNT(DISTINCT p.project) as project_count,
                 SUM(pm.quantity) as total_quantity
-            FROM {settings.PRODUCT_MATERIALS} pm
-            LEFT JOIN products_qwen p ON pm.product_headcode = p.headcode
+            FROM {settings.PRODUCT_MATERIALS_TABLE} pm
+            LEFT JOIN {settings.PRODUCT_TABLE} p ON pm.product_headcode = p.headcode
             WHERE pm.material_id_sap = %s
         """, (material['id_sap'],))
         stats = cur.fetchone()

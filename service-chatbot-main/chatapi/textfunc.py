@@ -574,33 +574,62 @@ def call_gemini_with_retry(model, prompt, max_retries=3, timeout=20):
 
 def calculate_product_total_cost(headcode: str) -> float:
     """Tính tổng chi phí (total_cost) cho một sản phẩm"""
-    conn = get_db()
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    
-    sql = """
-        SELECT 
-            m.material_subprice,
-            pm.quantity
-        FROM product_materials pm
-        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
-        WHERE pm.product_headcode = %s
-    """
+    # 1) Lấy định mức vật tư từ DB vector (product_materials)
     try:
-        cur.execute(sql, (headcode,))
-        materials = cur.fetchall()
+        conn_vec = get_db()
+        cur_vec = conn_vec.cursor(cursor_factory=RealDictCursor)
+        sql_pm = f"""
+            SELECT 
+                material_id_sap,
+                quantity
+            FROM {settings.PRODUCT_MATERIALS_TABLE}
+            WHERE product_headcode = %s
+        """
+        cur_vec.execute(sql_pm, (headcode,))
+        pm_rows = cur_vec.fetchall()
+        conn_vec.close()
     except Exception as e:
-        print(f"ERROR: Query error in calculate_product_total_cost for {headcode}: {e}")
-        conn.close()
+        print(f"ERROR: Query error (product_materials) in calculate_product_total_cost for {headcode}: {e}")
+        try:
+            conn_vec.close()
+        except Exception:
+            pass
         return 0.0
-    conn.close()
-    if not materials:
+
+    if not pm_rows:
         return 0.0
-    
-    material_cost = 0
-    for mat in materials:
-        quantity = float(mat['quantity']) if mat['quantity'] else 0.0
-        latest_price = get_latest_material_price(mat['material_subprice'])
-        material_cost += quantity * latest_price  # Fixed bug: accumulate material_cost
+
+    # 2) Lấy giá vật liệu từ DB gốc (VIEW_MATERIAL_MERGE)
+    id_saps = [row.get("material_id_sap") for row in pm_rows if row.get("material_id_sap")]
+    unique_ids = list({mid for mid in id_saps if mid})
+
+    origin_price_map = {}
+    if unique_ids:
+        try:
+            conn_origin = get_db_origin()
+            cur_origin = conn_origin.cursor(cursor_factory=RealDictCursor)
+            cur_origin.execute(
+                f'SELECT id_sap, material_subprice FROM public."{settings.MATERIALS_VIEW}" WHERE id_sap = ANY(%s)',
+                (unique_ids,)
+            )
+            rows = cur_origin.fetchall()
+            conn_origin.close()
+            origin_price_map = {r["id_sap"]: r.get("material_subprice") for r in rows if r.get("id_sap")}
+        except Exception as e:
+            print(f"WARNING: Failed to fetch material prices from {settings.MATERIALS_VIEW} for cost calc: {e}")
+            try:
+                conn_origin.close()
+            except Exception:
+                pass
+
+    # 3) Tính tổng chi phí vật liệu
+    material_cost = 0.0
+    for mat in pm_rows:
+        material_id = mat.get("material_id_sap")
+        quantity = float(mat.get("quantity") or 0.0)
+        subprice_json = origin_price_map.get(material_id)
+        latest_price = get_latest_material_price(subprice_json) if subprice_json else 0.0
+        material_cost += quantity * latest_price
 
     labor_cost = material_cost * 0.20
     overhead_cost = material_cost * 0.15
@@ -1249,9 +1278,9 @@ def generate_consolidated_report(product_headcodes: List[str]) -> BytesIO:
             pm.quantity,
             pm.unit as pm_unit,
             m.material_subprice
-        FROM product_materials pm
-        INNER JOIN products_qwen p ON pm.product_headcode = p.headcode
-        INNER JOIN materials m ON pm.material_id_sap = m.id_sap
+        FROM {settings.PRODUCT_MATERIALS} pm
+        INNER JOIN {settings.PRODUCTS_TABLE} p ON pm.product_headcode = p.headcode
+        INNER JOIN {settings.MATERIALS_TABLE} m ON pm.material_id_sap = m.id_sap
         WHERE p.headcode = ANY(%s)
         ORDER BY p.product_name, m.material_name
     """, (product_headcodes,))

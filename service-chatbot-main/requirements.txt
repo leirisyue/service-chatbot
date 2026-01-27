@@ -1,7 +1,7 @@
 fastapi
 pydantic
 psycopg2
-google.generativeai
+google-cloud-aiplatform>=1.134.0
 pandas
 Pillow
 python-multipart
