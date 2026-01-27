@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, Union
 from decimal import Decimal
 from typing import List
@@ -57,7 +57,7 @@ def process_table(table_name: str, limit: int | None = None, batch_size: int = 5
                 "original_data": row_to_original_data(columns, row),
                 "content_text": content_text,
                 "embedding": embedding,
-                "created_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
             }
         )
 
@@ -181,7 +181,7 @@ def insert_records(
                 "original_data": record,
                 "content_text": content_text,
                 "embedding": embedding,
-                "created_at": datetime.utcnow(),
+                "created_at": datetime.now(timezone.utc),
             }
         )
 
@@ -234,7 +234,7 @@ def update_records(
                 "original_data": record,
                 "content_text": content_text,
                 "embedding": embedding,
-                "created_at": datetime.utcnow(),
+                "updated_at": datetime.now(timezone.utc),
             }
         )
 

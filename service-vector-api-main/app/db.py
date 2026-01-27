@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Any, Dict, Optional
 import json
 
@@ -8,6 +8,26 @@ from .config import settings
 from .logger import setup_logger
 
 logger = setup_logger(__name__)
+
+def _serialize_datetime(obj):
+    """Helper function to serialize datetime objects to ISO format string."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
+
+def _serialize_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Recursively serialize datetime objects in a dictionary."""
+    result = {}
+    for key, value in data.items():
+        if isinstance(value, datetime):
+            result[key] = value.isoformat()
+        elif isinstance(value, dict):
+            result[key] = _serialize_dict(value)
+        elif isinstance(value, list):
+            result[key] = [_serialize_datetime(item) if isinstance(item, datetime) else item for item in value]
+        else:
+            result[key] = value
+    return result
 
 def make_pg_url(user, password, host, port, db):
     from urllib.parse import quote_plus
@@ -131,7 +151,8 @@ def ensure_target_table(table_name: str):
             original_data JSONB,
             content_text TEXT,
             embedding DOUBLE PRECISION[],
-            created_at TIMESTAMPTZ DEFAULT NOW()
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
         );
         """
 
@@ -144,7 +165,8 @@ def ensure_target_table(table_name: str):
             ADD COLUMN IF NOT EXISTS original_data JSONB,
             ADD COLUMN IF NOT EXISTS content_text TEXT,
             ADD COLUMN IF NOT EXISTS embedding DOUBLE PRECISION[],
-            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW(),
+            ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
         """
 
         conn.execute(text(alter_sql))
@@ -177,7 +199,8 @@ def insert_vector_rows(
     for r in rows:
         r = r.copy()
         if isinstance(r.get("original_data"), dict):
-            r["original_data"] = json.dumps(r["original_data"], ensure_ascii=False)
+            serialized_data = _serialize_dict(r["original_data"])
+            r["original_data"] = json.dumps(serialized_data, ensure_ascii=False)
         serialized_rows.append(r)
 
     logger.info("Inserting %d vector rows into target table %s", len(serialized_rows), table_name)
@@ -239,12 +262,18 @@ def update_origin_rows(
             if "id_sap" not in r:
                 raise ValueError("Missing 'id_sap' in origin row for update")
 
+            # Đảm bảo luôn có updated_at
+            if "updated_at" not in r or r["updated_at"] is None:
+                r["updated_at"] = datetime.now(timezone.utc)
+                
             # tách id_sap và các cột cần update
             id_sap_val = r["id_sap"]
             columns_to_update = {k: v for k, v in r.items() if k != "id_sap"}
 
             if not columns_to_update:
                 continue
+            
+            
 
             set_clauses = []
             params: Dict[str, Any] = {"id_sap": id_sap_val}
@@ -256,6 +285,8 @@ def update_origin_rows(
 
             set_sql = ", ".join(set_clauses)
 
+            print('set_sql',set_sql)
+            
             update_sql = text(
                 f'UPDATE public."{table_name}" '
                 f'SET {set_sql} '
@@ -289,10 +320,15 @@ def update_vector_rows(
         if "id_sap" not in r:
             raise ValueError("Missing 'id_sap' in row for update")
 
-        # serialize json safely
+        # Đảm bảo luôn có updated_at
+        if "updated_at" not in r or r["updated_at"] is None:
+            r["updated_at"] = datetime.now(timezone.utc)
+
+        # serialize json safely - convert datetime objects first
         if isinstance(r.get("original_data"), dict):
+            serialized_data = _serialize_dict(r["original_data"])
             r["original_data"] = json.dumps(
-                r["original_data"], ensure_ascii=False
+                serialized_data, ensure_ascii=False
             )
 
         serialized_rows.append(r)
@@ -309,12 +345,12 @@ def update_vector_rows(
         original_data = CAST(:original_data AS jsonb),
         content_text  = :content_text,
         embedding     = :embedding,
-        created_at    = :created_at
+        updated_at    = :updated_at
     WHERE
         COALESCE(
             CAST(original_data AS jsonb) ->> 'id_sap',
             CAST(original_data AS jsonb) ->> 'ID_SAP'
-        ) = :id_sap
+        ) = CAST(:id_sap AS TEXT)
     """
 
     with target_engine.begin() as conn:

@@ -1197,7 +1197,7 @@ def search_materials(params: Dict):
             results = cur.fetchall()
             origin_map = _fetch_material_view_data([m['id_sap'] for m in results]) if results else {}
             
-            print(f"INFO: Vector search returned {origin_map} materials")
+            # print(f"INFO: Vector search returned {origin_map} materials")
             if results:
                 # ✅ POST-FILTER: If main_keyword exists, only keep materials containing that keyword
                 if main_keyword:

@@ -1,6 +1,7 @@
 
 import json
 from typing import Dict
+import uuid
 
 import psycopg2
 from config import settings
@@ -134,6 +135,8 @@ def save_chat_to_histories(email: str,
     - If different time block: CREATE new record
     """
     try:
+        if not email or not session_id:
+            return False
         conn = get_db()
         cur = conn.cursor()
         
@@ -184,12 +187,13 @@ def save_chat_to_histories(email: str,
             # INSERT: Create new record
             insert_sql = """
                 INSERT INTO chat_histories 
-                (email, session_name, session_id, chat_date, time_block, history)
-                VALUES (%s, %s, %s, %s, %s, %s)
+                (id, email, session_name, session_id, chat_date, time_block, history)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
             """
             history_json = json.dumps([new_chat_entry])
-            cur.execute(insert_sql, (email, session_name, session_id, chat_date, time_block, history_json))
+            new_id = str(uuid.uuid4())
+            cur.execute(insert_sql, (new_id, email, session_name, session_id, chat_date, time_block, history_json))
             record_id = cur.fetchone()[0]
             print(f"CREATED chat_histories: {email} | {session_id[:8]}... | {chat_date} | Block {time_block}")
         

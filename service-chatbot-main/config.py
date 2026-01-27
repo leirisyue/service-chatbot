@@ -140,15 +140,20 @@ class Settings(BaseSettings):
         if not self.MAIN_DB_SSH_TUNNEL_HOST or not self.MAIN_DB_SSH_TUNNEL_USER:
             raise RuntimeError("self.MAIN_DB_SSH_TUNNEL_HOST và MAIN_DB_SSH_TUNNEL_USER phải được cấu hình trong .env khi bật MAIN_DB_SSH_TUNNEL_ENABLED.")
 
-        tunnel = SSHTunnelForwarder(
-            (self.MAIN_DB_SSH_TUNNEL_HOST, self.MAIN_DB_SSH_TUNNEL_PORT),
-            ssh_username=self.MAIN_DB_SSH_TUNNEL_USER,
-            ssh_password=self.MAIN_DB_SSH_TUNNEL_PASSWORD or None,
-            remote_bind_address=(self.MAIN_DB_HOST, int(self.MAIN_DB_PORT)),
-            local_bind_address=("127.0.0.1", self.MAIN_DB_SSH_TUNNEL_LOCAL_PORT),
-        )
-        tunnel.start()
-        _MAIN_DB_TUNNEL = tunnel
+        try:
+            tunnel = SSHTunnelForwarder(
+                (self.MAIN_DB_SSH_TUNNEL_HOST, self.MAIN_DB_SSH_TUNNEL_PORT),
+                ssh_username=self.MAIN_DB_SSH_TUNNEL_USER,
+                ssh_password=self.MAIN_DB_SSH_TUNNEL_PASSWORD or None,
+                remote_bind_address=(self.MAIN_DB_HOST, int(self.MAIN_DB_PORT)),
+                local_bind_address=("127.0.0.1", 0),  # Let system choose available port
+            )
+            tunnel.start()
+            _MAIN_DB_TUNNEL = tunnel
+            print(f"✓ Main DB SSH tunnel started: 127.0.0.1:{tunnel.local_bind_port} -> {self.MAIN_DB_HOST}:{self.MAIN_DB_PORT}")
+        except Exception as e:
+            print(f"✗ Failed to start Main DB SSH tunnel: {e}")
+            raise
 
         return _MAIN_DB_TUNNEL
 
@@ -165,15 +170,20 @@ class Settings(BaseSettings):
         if not self.VECTOR_DB_SSH_TUNNEL_HOST or not self.VECTOR_DB_SSH_TUNNEL_USER:
             raise RuntimeError("VECTOR_DB_SSH_TUNNEL_HOST và VECTOR_DB_SSH_TUNNEL_USER phải được cấu hình trong .env khi bật VECTOR_DB_SSH_TUNNEL_ENABLED.")
 
-        tunnel = SSHTunnelForwarder(
-            (self.VECTOR_DB_SSH_TUNNEL_HOST, self.VECTOR_DB_SSH_TUNNEL_PORT),
-            ssh_username=self.VECTOR_DB_SSH_TUNNEL_USER,
-            ssh_password=self.VECTOR_DB_SSH_TUNNEL_PASSWORD or None,
-            remote_bind_address=(self.VECTOR_DB_HOST, int(self.VECTOR_DB_PORT)),
-            local_bind_address=("127.0.0.1", self.VECTOR_DB_SSH_TUNNEL_LOCAL_PORT),
-        )
-        tunnel.start()
-        _VECTOR_DB_TUNNEL = tunnel
+        try:
+            tunnel = SSHTunnelForwarder(
+                (self.VECTOR_DB_SSH_TUNNEL_HOST, self.VECTOR_DB_SSH_TUNNEL_PORT),
+                ssh_username=self.VECTOR_DB_SSH_TUNNEL_USER,
+                ssh_password=self.VECTOR_DB_SSH_TUNNEL_PASSWORD or None,
+                remote_bind_address=(self.VECTOR_DB_HOST, int(self.VECTOR_DB_PORT)),
+                local_bind_address=("127.0.0.1", 0),  # Let system choose available port
+            )
+            tunnel.start()
+            _VECTOR_DB_TUNNEL = tunnel
+            print(f"✓ Vector DB SSH tunnel started: 127.0.0.1:{tunnel.local_bind_port} -> {self.VECTOR_DB_HOST}:{self.VECTOR_DB_PORT}")
+        except Exception as e:
+            print(f"✗ Failed to start Vector DB SSH tunnel: {e}")
+            raise
 
         return _VECTOR_DB_TUNNEL
 
