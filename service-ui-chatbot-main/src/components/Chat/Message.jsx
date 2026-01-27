@@ -253,7 +253,16 @@ function Message({ message, onSendMessage, typing }) {
           </div>
           {message?.imageUrl && (
             <div className="message-image">
-              <img src={message?.imageUrl} alt="Uploaded" width={300} />
+              <img 
+                src={message?.imageUrl} 
+                alt="Uploaded" 
+                width={300}
+                referrerPolicy="no-referrer"
+                onError={(e) => {
+                  e.target.alt = 'Không thể tải ảnh';
+                  e.target.style.border = '1px solid red';
+                }}
+              />
             </div>
           )}
           {message.imageUrl && isUser && message?.content && (
@@ -293,7 +302,19 @@ function Message({ message, onSendMessage, typing }) {
                           {message.data?.materials?.map((row, index) => (
                             <TableRow key={index}>
                               <TableCell>{index + 1}</TableCell>
-                              <TableCell> {row?.image_url ? <img src={convertGDriveUrl(row?.image_url)} alt={row?.material_name} width={50} /> : ''}</TableCell>
+                              <TableCell> {row?.image_url ? (
+                                <img 
+                                  src={convertGDriveUrl(row?.image_url)} 
+                                  alt={row?.material_name} 
+                                  width={50}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.nextElementSibling && (e.target.nextElementSibling.style.color = 'red');
+                                  }}
+                                />
+                              ) : ''}
+                              </TableCell>
                               <TableCell component="th" scope="row">{row?.material_name}</TableCell>
                               <TableCell>{row?.id_sap}</TableCell>
                               <TableCell>{row?.material_subgroup} </TableCell>
@@ -325,7 +346,15 @@ function Message({ message, onSendMessage, typing }) {
                           {message.data?.products?.map((row, index) => (
                             <TableRow key={index}>
                               <TableCell>{index + 1}</TableCell>
-                              <TableCell> {row.image_url ? <img src={convertGDriveUrl(row.image_url)} alt={row.product_name} width={50} /> : ''}</TableCell>
+                              <TableCell> {row.image_url ? (
+                                <img 
+                                  src={convertGDriveUrl(row.image_url)} 
+                                  alt={row.product_name} 
+                                  width={50}
+                                  referrerPolicy="no-referrer"
+                                  onError={(e) => e.target.style.display = 'none'}
+                                />
+                              ) : ''}</TableCell>
                               <TableCell component="th" scope="row">{row.product_name}</TableCell>
                               <TableCell>{row.headcode}</TableCell>
                               <TableCell width={160}> {row.sub_category}</TableCell>
@@ -431,7 +460,15 @@ function Message({ message, onSendMessage, typing }) {
                             {message.data?.products_second?.map((row, index) => (
                               <TableRow key={index}>
                                 <TableCell>{index + 1}</TableCell>
-                                <TableCell>{row?.image_url ? <img src={convertGDriveUrl(row?.image_url)} alt={row?.product_name} width={50} /> : ''}</TableCell>
+                                <TableCell>{row?.image_url ? (
+                                  <img 
+                                    src={convertGDriveUrl(row?.image_url)} 
+                                    alt={row?.product_name} 
+                                    width={50}
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => e.target.style.display = 'none'}
+                                  />
+                                ) : ''}</TableCell>
                                 <TableCell component="th" scope="row">{row?.product_name}</TableCell>
                                 <TableCell>{row?.headcode}</TableCell>
                                 <TableCell width={160}> {row?.sub_category}</TableCell>
