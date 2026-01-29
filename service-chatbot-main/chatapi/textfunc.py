@@ -62,7 +62,6 @@ def generate_text_rest(prompt: str) -> Dict:
         payload=payload
     )
 
-
 def call_gemini_with_retry(prompt, max_retries=3, timeout=20):
     
     def timeout_handler(signum, frame):
@@ -117,7 +116,6 @@ def call_gemini_with_retry(prompt, max_retries=3, timeout=20):
             print(f"ERROR Gemini: {e}")
             return None
     return None
-
 
 def format_suggested_prompts(prompts: list[str]) -> str:
     if not prompts:

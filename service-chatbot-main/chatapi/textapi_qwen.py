@@ -89,7 +89,6 @@ router = APIRouter()
 
 def generate_suggested_prompts(context_type: str, context_data: Dict = None, count: int = 4) -> List[str]:
     
-        
     prompt = f"""
         Bạn là chuyên viên tư vấn nội thất cao cấp của AA Corporation.
         Nhiệm vụ: Tạo {count} câu gợi ý TỰ NHIÊN, CHUYÊN NGHIỆP, PHÙ HỢP với ngữ cảnh, dạng câu HỎI, 

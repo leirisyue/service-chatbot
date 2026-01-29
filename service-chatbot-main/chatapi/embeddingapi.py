@@ -52,10 +52,10 @@ def generate_product_embeddings_qwen():
     cur = conn.cursor(cursor_factory=RealDictCursor)
     
     # Get products not yet in qwen table
-    cur.execute("""
+    cur.execute(f"""
         SELECT p.headcode, p.product_name, p.category, p.sub_category, p.material_primary
-        FROM products_qwen p
-        LEFT JOIN qwen q ON q.table_name = 'products_qwen' AND q.record_id = p.headcode
+        FROM {settings.PRODUCTS_TABLE} p
+        LEFT JOIN qwen q ON q.table_name = '{settings.PRODUCTS_TABLE}' AND q.record_id = p.headcode
         WHERE q.record_id IS NULL
         LIMIT 100
     """)
